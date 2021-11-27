@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+    <RootNamespace>VanBot</RootNamespace>
+    <AssemblyName>VanBot</AssemblyName>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+	<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+	<TargetName>van_bot</TargetName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="drivers\chromedriver.exe" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="drivers\chromedriver.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
+    <PackageReference Include="log4net" Version="2.0.13" />
+    <PackageReference Include="RandomUserAgent" Version="1.1.2" />
+    <PackageReference Include="Selenium.WebDriver" Version="4.1.0" />
+    <PackageReference Include="System.Management" Version="6.0.0" />
+  </ItemGroup>
+
+</Project>

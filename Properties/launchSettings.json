@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "van-bot-net": {
+      "commandName": "Project",
+      "commandLineArgs": "-u \"asd\" -p \"asd\" -t \"EJUP\""
+    }
+  }
+}
