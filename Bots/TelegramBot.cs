@@ -7,10 +7,11 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using VanBot.Utilities;
 
 #endregion
 
-namespace VanBot {
+namespace VanBot.Bots {
     public class TelegramBot {
         private readonly string chatKey;
         private readonly HttpClient http;
@@ -21,7 +22,7 @@ namespace VanBot {
             this.chatKey = chatKey;
             this.http = new HttpClient();
             var baseApiUrl = "https://telegram-botti.herokuapp.com/bot";
-            if (Utilities.IsDebug()) {
+            if (Tools.IsDebug()) {
                 baseApiUrl = "https://b8e0-80-221-79-96.ngrok.io/bot";
             }
 

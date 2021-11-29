@@ -6,7 +6,7 @@ using OpenQA.Selenium.Support.UI;
 
 #endregion
 
-namespace VanBot {
+namespace VanBot.Utilities {
     public static class Extensions {
         public static IWebElement FindElement(this IWebDriver driver, By by, int timeoutInSeconds) {
             if (timeoutInSeconds > 0) {

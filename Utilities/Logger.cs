@@ -10,7 +10,7 @@ using log4net.Layout;
 
 #endregion
 
-namespace VanBot {
+namespace VanBot.Utilities {
     internal class Log {
         private const string DatePattern = "yyyy-MM-dd HH:mm:ss";
         private static readonly string AppenderPattern = $"%date{{{DatePattern}}} [%p] %m%n";

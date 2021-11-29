@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 using CommandLine;
+using VanBot.Utilities;
+using VanBotScraper = VanBot.Bots.VanBot;
 
 #endregion
 
@@ -29,7 +31,7 @@ namespace VanBot {
 
             if (string.IsNullOrWhiteSpace(options.Password)) {
                 Console.Write("Password:");
-                options.Password = Console.ReadLine();
+                options.Password = Tools.ReadPassword();
             }
 
             if (string.IsNullOrWhiteSpace(options.TelegramKey)) {
@@ -38,13 +40,17 @@ namespace VanBot {
             }
 
             try {
-                var vanBot = new VanBot(options);
+                var vanBot = new VanBotScraper(options);
                 vanBot.Start(CancellationTokenSource.Token);
             } catch (Exception e) {
                 Log.Error($"Error: {e.Message}");
+                VanBotScraper.Stop();
+                if (!Tools.IsDebug()) {
+                    Console.WriteLine("Press any key to close...");
+                    Console.ReadKey();
+                }
+
                 return 1;
-            } finally {
-                VanBot.Stop();
             }
 
             return 0;
@@ -62,8 +68,13 @@ namespace VanBot {
                 case CtrlType.CTRL_LOGOFF_EVENT:
                 case CtrlType.CTRL_SHUTDOWN_EVENT:
                 case CtrlType.CTRL_CLOSE_EVENT:
-                    VanBot.Stop();
-                    CancellationTokenSource.Cancel(false);
+                    VanBotScraper.Stop();
+                    //CancellationTokenSource.Cancel(false);
+                    if (!Tools.IsDebug()) {
+                        Console.WriteLine("Press any key to close...");
+                        Console.ReadKey();
+                    }
+
                     Environment.Exit(0);
                     return false;
                 default:

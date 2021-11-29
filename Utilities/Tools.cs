@@ -1,11 +1,12 @@
 ﻿#region
 
+using System;
 using System.IO;
 
 #endregion
 
-namespace VanBot {
-    public class Utilities {
+namespace VanBot.Utilities {
+    public class Tools {
         /// <summary>
         /// StreamToBytes - Converts a Stream to a byte array. Eg: Get a Stream from a file,url, or open file handle.
         /// </summary>
@@ -33,7 +34,7 @@ namespace VanBot {
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
-            var assembly = typeof(VanBot).Assembly;
+            var assembly = typeof(Bots.VanBot).Assembly;
             using var input = assembly.GetManifestResourceStream("VanBot.drivers.chromedriver.exe");
             var byteData = StreamToBytes(input);
             File.WriteAllBytes(tempPath, byteData);
@@ -47,6 +48,27 @@ namespace VanBot {
 #else
         return false;
 #endif
+        }
+
+        public static string ReadPassword() {
+            var pass = string.Empty;
+            ConsoleKey key;
+            do {
+                var keyInfo = Console.ReadKey(intercept: true);
+                key = keyInfo.Key;
+
+                if (key == ConsoleKey.Backspace && pass.Length > 0) {
+                    Console.Write("\b \b");
+                    pass = pass[0..^1];
+                } else if (!char.IsControl(keyInfo.KeyChar)) {
+                    Console.Write("*");
+                    pass += keyInfo.KeyChar;
+                }
+            } while (key != ConsoleKey.Enter);
+
+            Console.WriteLine();
+
+            return pass;
         }
     }
 }

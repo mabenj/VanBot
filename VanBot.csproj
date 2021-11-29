@@ -7,7 +7,13 @@
     <AssemblyName>VanBot</AssemblyName>
     <ApplicationIcon>icon.ico</ApplicationIcon>
 	<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-	<TargetName>van_bot</TargetName>
+	<SignAssembly>true</SignAssembly>
+	<AssemblyOriginatorKeyFile>keyfile.pfx</AssemblyOriginatorKeyFile>
+	<DelaySign>false</DelaySign>
+	<Authors>@mabenj</Authors>
+	<Company>Markkinarako Oy</Company>
+	<Description>Vehje jolla varata vehkeitä</Description>
+	<Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

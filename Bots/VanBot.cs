@@ -9,10 +9,11 @@ using System.Threading.Tasks;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using RandomUserAgent;
+using VanBot.Utilities;
 
 #endregion
 
-namespace VanBot {
+namespace VanBot.Bots {
     public class VanBot {
         private const string MainUrl = "https://www.vaurioajoneuvo.fi/";
         private const string LoginUrl = "https://www.vaurioajoneuvo.fi/kayttajalle/kirjaudu-sisaan/";
@@ -20,12 +21,14 @@ namespace VanBot {
 
         // ReSharper disable once IdentifierTypo
         private static readonly HashSet<int> BrowserPids = new();
+        private static bool ChromeDriverStopped = true;
+        private static readonly object LockObj = new();
 
         private readonly TimeSpan interval;
         private readonly bool isHeadless;
         private readonly string password;
         private readonly TelegramBot telegramBot;
-        private readonly int testIteration = Utilities.IsDebug() ? 1 : -1;
+        private readonly int testIteration = -1;
         private readonly string username;
         private Dictionary<string, Auction> allAuctions;
         private bool canLogIn;
@@ -44,6 +47,9 @@ namespace VanBot {
             this.iterations = 0;
             this.iterationsSinceNew = 0;
             this.driver = null;
+            if (Tools.IsDebug()) {
+                this.testIteration = -1;
+            }
         }
 
         public void Start(CancellationToken token) {
@@ -247,14 +253,14 @@ namespace VanBot {
                 passwordInput.SendKeys(Keys.Return);
 
                 // ReSharper disable StringLiteralTypo
-                if (this.PageHasElement(By.LinkText("Omat tiedot"))) {
-                    // ReSharper restore StringLiteralTypo
+                var siteHeaderLinks = this.driver.FindElements(By.CssSelector("#header-actions-desktop>a"));
+                if (siteHeaderLinks.Count < 2) {
                     Log.Info("Successfully logged in");
                     return true;
-                } else {
-                    Log.Warning("Could not log in");
-                    return false;
                 }
+
+                Log.Warning("Could not log in");
+                return false;
             } catch (Exception e) {
                 Log.Error($"Error while logging in as '{this.username}': {e.Message}");
                 throw;
@@ -293,7 +299,7 @@ namespace VanBot {
 
         // ReSharper disable once IdentifierTypo
         private IWebElement WaitForElementToBeClickable(By by, int timeout = 10) {
-            return this.driver.FindElement(by /*, timeout*/);
+            return this.driver.FindElement(by, timeout);
         }
 
 
@@ -328,6 +334,7 @@ namespace VanBot {
             return this.driver.Title.ToLower().StartsWith("captcha");
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "<Pending>")]
         private void InitializeChromeDriver() {
             KillBrowsers();
 
@@ -346,38 +353,49 @@ namespace VanBot {
                 options.AddArgument("headless");
             }
 
-            var service = ChromeDriverService.CreateDefaultService(Utilities.ExtractChromeDriverResource());
+            var service = ChromeDriverService.CreateDefaultService(Tools.ExtractChromeDriverResource());
             service.SuppressInitialDiagnosticInformation = true;
 
             this.driver = new ChromeDriver(service, options);
             this.driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+            ChromeDriverStopped = false;
 
-            BrowserPids.Add(service.ProcessId);
-            var mos = new ManagementObjectSearcher($"Select * From Win32_Process Where ParentProcessID={service.ProcessId}");
-            foreach (var mo in mos.Get()) {
-                BrowserPids.Add(Convert.ToInt32(mo["ProcessID"]));
+            lock (LockObj) {
+                BrowserPids.Add(service.ProcessId);
+                var mos = new ManagementObjectSearcher($"Select * From Win32_Process Where ParentProcessID={service.ProcessId}");
+                foreach (var mo in mos.Get()) {
+                    BrowserPids.Add(Convert.ToInt32(mo["ProcessID"]));
+                }
             }
         }
 
         internal static void Stop() {
-            Log.Info("Stopping...");
-            try {
-                Log.Info("Killing browsers");
-                KillBrowsers();
-            } catch (Exception e) {
-                // ReSharper disable once StringLiteralTypo
-                Log.Error($"Could not stop chromedriver: {e.Message}");
-                return;
-            }
+            lock (LockObj) {
+                if (ChromeDriverStopped) {
+                    return;
+                }
 
-            // ReSharper disable once StringLiteralTypo
-            Log.Info("Chromedriver stopped successfully");
+                Log.Info("Stopping...");
+                try {
+                    Log.Info("Killing browsers");
+                    KillBrowsers();
+                } catch (Exception e) {
+                    // ReSharper disable once StringLiteralTypo
+                    Log.Error($"Could not stop chromedriver: {e.Message}");
+                    return;
+                }
+
+                Log.Info("Stopped successfully");
+                ChromeDriverStopped = true;
+            }
         }
 
         private static void KillBrowsers() {
-            foreach (var pid in BrowserPids.ToList()) {
-                System.Diagnostics.Process.GetProcessById(pid).Kill();
-                BrowserPids.Remove(pid);
+            lock (LockObj) {
+                foreach (var pid in BrowserPids.ToList()) {
+                    System.Diagnostics.Process.GetProcessById(pid).Kill();
+                    BrowserPids.Remove(pid);
+                }
             }
         }
     }
