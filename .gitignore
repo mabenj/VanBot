@@ -147,3 +147,4 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+Properties/launchSettings.json

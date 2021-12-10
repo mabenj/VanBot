@@ -1,103 +1,106 @@
 ﻿#region
 
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Threading;
-using CommandLine;
-using VanBot.Utilities;
 using VanBotScraper = VanBot.Bots.VanBot;
 
 #endregion
 
 namespace VanBot {
-    internal class Program {
-        internal static volatile CancellationTokenSource CancellationTokenSource = new();
+	using System;
+	using System.Collections.Generic;
+	using System.Runtime.InteropServices;
+	using System.Threading;
 
-        [DllImport("Kernel32")]
-        private static extern bool SetConsoleCtrlHandler(SetConsoleCtrlEventHandler handler, bool add);
+	using CommandLine;
 
-        private static int Main(string[] args) {
-            //Console.CancelKeyPress += CancelHandler;
-            SetConsoleCtrlHandler(CloseHandler, true);
-            return Parser.Default.ParseArguments<Options>(args).MapResult(RunOptions, HandleParseError);
-        }
+	using VanBot.Utilities;
 
-        private static int RunOptions(Options options) {
-            if (string.IsNullOrWhiteSpace(options.Username)) {
-                Console.Write("Username:");
-                options.Username = Console.ReadLine();
-            }
+	internal class Program {
+		internal static volatile CancellationTokenSource CancellationTokenSource = new();
+		private static bool exitRequested = false;
 
-            if (string.IsNullOrWhiteSpace(options.Password)) {
-                Console.Write("Password:");
-                options.Password = Tools.ReadPassword();
-            }
+		// https://docs.microsoft.com/en-us/windows/console/handlerroutine?WT.mc_id=DT-MVP-5003978
+		private delegate bool SetConsoleCtrlEventHandler(CtrlType sig);
 
-            if (string.IsNullOrWhiteSpace(options.TelegramKey)) {
-                Console.Write("Telegram chat key:");
-                options.TelegramKey = Console.ReadLine();
-            }
+		// ReSharper disable InconsistentNaming
+		private enum CtrlType {
+			CTRL_C_EVENT = 0,
+			CTRL_BREAK_EVENT = 1,
+			CTRL_CLOSE_EVENT = 2,
+			CTRL_LOGOFF_EVENT = 5,
+			CTRL_SHUTDOWN_EVENT = 6
+		}
+		// ReSharper restore InconsistentNaming
 
-            try {
-                var vanBot = new VanBotScraper(options);
-                vanBot.Start(CancellationTokenSource.Token);
-            } catch (Exception e) {
-                Log.Error($"Error: {e.Message}");
-                VanBotScraper.Stop();
-                if (!Tools.IsDebug()) {
-                    Console.WriteLine("Press any key to close...");
-                    Console.ReadKey();
-                }
+		private static bool CloseHandler(CtrlType signal) {
+			switch(signal) {
+			case CtrlType.CTRL_BREAK_EVENT:
+			case CtrlType.CTRL_C_EVENT:
+			case CtrlType.CTRL_LOGOFF_EVENT:
+			case CtrlType.CTRL_SHUTDOWN_EVENT:
+			case CtrlType.CTRL_CLOSE_EVENT:
+				exitRequested = true;
+				VanBotScraper.Stop();
+				CancellationTokenSource.Cancel(false);
+				if(!Tools.IsDebug()) {
+					Console.WriteLine("Press any key to close...");
+					Console.ReadKey();
+				}
 
-                return 1;
-            }
+				Environment.Exit(0);
+				return false;
+			default:
+				return false;
+			}
+		}
 
-            return 0;
-        }
+		private static int HandleParseError(IEnumerable<Error> errs) {
+			Log.Error("Could not parse the command line options");
+			return 1;
+		}
 
-        private static void CancelHandler(object sender, ConsoleCancelEventArgs args) {
-            args.Cancel = true;
-            CancellationTokenSource.Cancel(false);
-        }
+		private static int Main(string[] args) {
+			SetConsoleCtrlHandler(CloseHandler, true);
+			return Parser.Default.ParseArguments<Options>(args).MapResult(RunOptions, HandleParseError);
+		}
 
-        private static bool CloseHandler(CtrlType signal) {
-            switch (signal) {
-                case CtrlType.CTRL_BREAK_EVENT:
-                case CtrlType.CTRL_C_EVENT:
-                case CtrlType.CTRL_LOGOFF_EVENT:
-                case CtrlType.CTRL_SHUTDOWN_EVENT:
-                case CtrlType.CTRL_CLOSE_EVENT:
-                    VanBotScraper.Stop();
-                    //CancellationTokenSource.Cancel(false);
-                    if (!Tools.IsDebug()) {
-                        Console.WriteLine("Press any key to close...");
-                        Console.ReadKey();
-                    }
+		private static int RunOptions(Options options) {
+			if(!options.NoSignIn) {
+				if(string.IsNullOrWhiteSpace(options.Username)) {
+					Console.Write("Username:");
+					options.Username = Console.ReadLine();
+				}
 
-                    Environment.Exit(0);
-                    return false;
-                default:
-                    return false;
-            }
-        }
+				if(string.IsNullOrWhiteSpace(options.Password)) {
+					Console.Write("Password:");
+					options.Password = Tools.ReadPassword();
+				}
+			}
 
-        private static int HandleParseError(IEnumerable<Error> errs) {
-            Log.Error("Could not parse the command line options");
-            return 1;
-        }
+			if(string.IsNullOrWhiteSpace(options.TelegramKey)) {
+				Console.Write("Telegram chat key:");
+				options.TelegramKey = Console.ReadLine();
+			}
 
-        // https://docs.microsoft.com/en-us/windows/console/handlerroutine?WT.mc_id=DT-MVP-5003978
-        private delegate bool SetConsoleCtrlEventHandler(CtrlType sig);
+			try {
+				var vanBot = new VanBotScraper(options, "https://www.vaurioajoneuvo.fi/?type=PassengerCar");
+				vanBot.Start(CancellationTokenSource.Token);
+			} catch(Exception e) {
+				if(!exitRequested) {
+					Log.Error($"Error: {e.Message}");
+					VanBotScraper.Stop();
+					if(!Tools.IsDebug()) {
+						Console.WriteLine("Press any key to close...");
+						Console.ReadKey();
+					}
+				}
 
-        // ReSharper disable InconsistentNaming
-        private enum CtrlType {
-            CTRL_C_EVENT = 0,
-            CTRL_BREAK_EVENT = 1,
-            CTRL_CLOSE_EVENT = 2,
-            CTRL_LOGOFF_EVENT = 5,
-            CTRL_SHUTDOWN_EVENT = 6
-        }
-        // ReSharper restore InconsistentNaming
-    }
+				return 1;
+			}
+
+			return 0;
+		}
+
+		[DllImport("Kernel32")]
+		private static extern bool SetConsoleCtrlHandler(SetConsoleCtrlEventHandler handler, bool add);
+	}
 }

@@ -1,78 +1,102 @@
 ﻿#region
 
-using System;
-using System.Net;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using VanBot.Utilities;
-
 #endregion
 
 namespace VanBot.Bots {
-    public class TelegramBot {
-        private readonly string chatKey;
-        private readonly HttpClient http;
-        private readonly string sendMessageApiUrl;
-        private readonly string testChatKeyApiUrl;
+	using System;
+	using System.Net;
+	using System.Net.Http;
+	using System.Text;
+	using System.Threading.Tasks;
 
-        public TelegramBot(string chatKey) {
-            this.chatKey = chatKey;
-            this.http = new HttpClient();
-            var baseApiUrl = "https://telegram-botti.herokuapp.com/bot";
-            if (Tools.IsDebug()) {
-                baseApiUrl = "https://b8e0-80-221-79-96.ngrok.io/bot";
-            }
+	using global::VanBot.Utilities;
 
-            this.sendMessageApiUrl = $"{baseApiUrl}/sendMessage";
-            this.testChatKeyApiUrl = $"{baseApiUrl}/chatKey";
-        }
+	using Newtonsoft.Json;
+	using Newtonsoft.Json.Serialization;
 
-        public async Task<bool> TestChatKey() {
-            try {
-                var response = await this.http.GetAsync($"{testChatKeyApiUrl}/{this.chatKey}");
-                if (response.StatusCode == HttpStatusCode.NotFound) {
-                    Log.Warning("Telegram bot chat key is invalid");
-                    return false;
-                }
+	public class TelegramBot {
+		private readonly string chatKey;
+		private readonly HttpClient http;
+		private readonly string sendMessageApiUrl;
+		private readonly string testChatKeyApiUrl;
 
-                var responseBody = JsonConvert.DeserializeObject<ChatDto>(await response.Content.ReadAsStringAsync());
-                return responseBody.ChatId > 0;
-            } catch (Exception e) {
-                Log.Error($"Error while testing chat key: {e.Message}");
-                return false;
-            }
-        }
+		public TelegramBot(string chatKey) {
+			this.chatKey = chatKey;
+			this.http = new HttpClient();
+			var baseApiUrl = "https://telegram-botti.herokuapp.com/bot";
+			if(Tools.IsDebug()) {
+				//baseApiUrl = "https://b8e0-80-221-79-96.ngrok.io/bot";
+			}
 
-        public async Task<bool> SendMessage(string message) {
-            try {
-                var payload = JsonConvert.SerializeObject(
-                    new MessageDto(this.chatKey, message),
-                    new JsonSerializerSettings() {
-                        ContractResolver = new CamelCasePropertyNamesContractResolver()
-                    });
-                var body = new StringContent(payload, Encoding.UTF8, "application/json");
-                var response = await this.http.PostAsync(sendMessageApiUrl, body);
+			this.sendMessageApiUrl = $"{baseApiUrl}/sendMessage";
+			this.testChatKeyApiUrl = $"{baseApiUrl}/chatKey";
+		}
 
-                if (response.StatusCode == HttpStatusCode.NotFound) {
-                    Log.Error("Invalid chat key used for telegram bot");
-                    return false;
-                }
+		public async void NotifyCaptcha() {
+			// ReSharper disable StringLiteralTypo
+			await this.SendMessage("Ne luulee et oon botti. Käy tekemäs captcha ja käynnistä uudelleen.");
+			// ReSharper restore StringLiteralTypo
+		}
 
-                var responseBody = JsonConvert.DeserializeObject<MessageResponseDto>(await response.Content.ReadAsStringAsync());
-                return responseBody.Ok;
-            } catch (Exception e) {
-                Log.Error($"Error while sending message to the telegram bot: {e.Message}");
-                return false;
-            }
-        }
-    }
+		public void NotifyNewAuction(Auction auction) {
+			// ReSharper disable StringLiteralTypo
+			const string Prefix = "Uus vehje ois tarjolla:";
+			var priceTag = auction.IsForScrapyards ? "Vain purkamoille" : $"{auction.Price}€";
+			var message = $"{Prefix} {auction.FullUri} \r\nHinta: <b>{priceTag}</b>";
+			// ReSharper restore StringLiteralTypo
+			Task.Run(() => this.SendMessage(message));
+		}
 
-    public record MessageDto(string ChatKey, string Message);
+		public void NotifyNewReservation(Auction auction) {
+			// ReSharper disable StringLiteralTypo
+			var message = $"Tää vehje ois <b>varattu</b>\r\n{auction.FullUri}";
+			// ReSharper restore StringLiteralTypo
+			Task.Run(() => this.SendMessage(message));
+		}
 
-    public record MessageResponseDto(bool Ok);
+		public async Task<bool> TestChatKey() {
+			try {
+				var response = await this.http.GetAsync($"{this.testChatKeyApiUrl}/{this.chatKey}");
+				if(response.StatusCode == HttpStatusCode.NotFound) {
+					Log.Warning("Telegram bot chat key is invalid");
+					return false;
+				}
 
-    public record ChatDto(int ChatId, int CreatedById, string ChatKey, DateTime CreationDate);
+				var responseBody = JsonConvert.DeserializeObject<ChatDto>(await response.Content.ReadAsStringAsync());
+				return responseBody.ChatId > 0;
+			} catch(Exception e) {
+				Log.Error($"Error while testing chat key: {e.Message}");
+				return false;
+			}
+		}
+
+		private async Task<bool> SendMessage(string message) {
+			try {
+				var payload = JsonConvert.SerializeObject(
+					new MessageDto(this.chatKey, message),
+					new JsonSerializerSettings() {
+						ContractResolver = new CamelCasePropertyNamesContractResolver()
+					});
+				var body = new StringContent(payload, Encoding.UTF8, "application/json");
+				var response = await this.http.PostAsync(this.sendMessageApiUrl, body);
+
+				if(response.StatusCode == HttpStatusCode.NotFound) {
+					Log.Error("Invalid chat key used for telegram bot");
+					return false;
+				}
+
+				var responseBody = JsonConvert.DeserializeObject<MessageResponseDto>(await response.Content.ReadAsStringAsync());
+				return responseBody.Ok;
+			} catch(Exception e) {
+				Log.Error($"Error while sending message to the telegram bot: {e.Message}");
+				return false;
+			}
+		}
+	}
+
+	public record MessageDto(string ChatKey, string Message);
+
+	public record MessageResponseDto(bool Ok);
+
+	public record ChatDto(int ChatId, int CreatedById, string ChatKey, DateTime CreationDate);
 }
