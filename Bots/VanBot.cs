@@ -1,6 +1,5 @@
 ﻿namespace VanBot.Bots {
 	using System;
-	using System.Collections.Generic;
 	using System.Diagnostics;
 	using System.Linq;
 	using System.Net;
@@ -16,13 +15,12 @@
 
 	public class VanBot {
 		private const string DefaultScrapingUrl = "https://www.vaurioajoneuvo.fi/";
-		private const string MockAuctionUri = "/tuote/toyota-toyota-yaris-hybrid-monikayttoajoneuvo-af-4ov-1497cm3-mlc-104/?foo=bar";
 
 		private readonly TimeSpan interval;
 		private readonly Reserver reserver;
 		private readonly Scraper scraper;
 		private readonly TelegramBot telegramBot;
-		private readonly int testIteration = 15;
+		private readonly int testIteration = -15;
 		private readonly Stopwatch timer;
 		private readonly string urlToScrape;
 		private Auctions allAuctions;
@@ -80,7 +78,7 @@
 				try {
 					var currentHtml = this.scraper.GetHtml(this.urlToScrape, out status);
 					if(this.iterations == this.testIteration) {
-						currentHtml = AddMockAuction(currentHtml, MockAuctionUri);
+						currentHtml = AddMockAuction(currentHtml);
 					}
 					var currentHashValue = Utilities.CalculateCrc32(currentHtml);
 
@@ -107,30 +105,48 @@
 
 					hashValue = currentHashValue;
 					this.timer.Stop();
-					Log.Info(
-						$"[req: {this.iterations}]"
-						+ $" [req_since_new: {this.iterationsSinceNew}]"
-						+ $" [page_updated: {(pageUpdated ? "yes]" : "no]"),-4}"
-						+ $" [status: {$"{(int) status} ({status})]",-10}"
-						+ $" [time: {$"{this.timer.ElapsedMilliseconds}",-4} ms]"
-					);
+					LogStatus(
+						new StatusInfo(
+							this.iterations,
+							this.iterationsSinceNew,
+							pageUpdated,
+							status,
+							this.timer.ElapsedMilliseconds
+						));
 					var sleepTime = this.interval - this.timer.Elapsed;
 					if(sleepTime.TotalMilliseconds > 0) {
 						cancellationToken.WaitHandle.WaitOne(Convert.ToInt32(sleepTime.TotalMilliseconds));
 					}
 				} catch(Exception e) {
-					Log.Error($"Error: {e.Message}");
+					Log.Error(e.Message);
 				}
 			}
 		}
 
-		private static string AddMockAuction(string html, string mockUri) {
+		private static string AddMockAuction(string html) {
 			var htmlDoc = new HtmlDocument();
 			htmlDoc.LoadHtml(html);
 			var searchResultNode = htmlDoc.DocumentNode.SelectSingleNode("//div[@id=\"cars-search-results\"]");
 			var auctionNode = searchResultNode.SelectSingleNode(".//a[@href]");
-			auctionNode.SetAttributeValue("href", mockUri);
+			var duplicate = auctionNode.CloneNode(true);
+			var mockUri = $"{auctionNode.Attributes["href"].Value}?foo=bar";
+			duplicate.SetAttributeValue("href", mockUri);
+			auctionNode.ParentNode.ChildNodes.Add(duplicate);
 			return htmlDoc.DocumentNode.OuterHtml;
+		}
+
+		private static void LogStatus(StatusInfo statusInfo) {
+			var reqColor = LoggerColor.Blue;
+			var updatedColor = statusInfo.PageUpdated ? LoggerColor.Cyan : LoggerColor.Yellow;
+			var statusColor = statusInfo.ScraperStatus == HttpStatusCode.OK ? LoggerColor.Green : LoggerColor.Yellow;
+			var timeColor = statusInfo.LoopTime > 100 ? LoggerColor.Red : statusInfo.LoopTime > 50 ? LoggerColor.Yellow : LoggerColor.Green;
+
+			var formattedStatus = $"[req: {reqColor}{statusInfo.Iterations}{LoggerColor.Reset}]"
+				+ $" [req_since_new: {reqColor}{statusInfo.IterationsSinceNew}{LoggerColor.Reset}]"
+				+ $" [page_updated: {updatedColor}{(statusInfo.PageUpdated ? $"yes{LoggerColor.Reset}]" : $"no{LoggerColor.Reset}]"),-5}"
+				+ $" [status: {statusColor}{$"{(int) statusInfo.ScraperStatus} ({statusInfo.ScraperStatus}){LoggerColor.Reset}]",-10}"
+				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]";
+			Log.Info(formattedStatus);
 		}
 
 		private bool CheckCredentials(string[] errors) {
@@ -161,8 +177,14 @@
 		}
 
 		private void NotifyAndReserveAuctions(ref Auction[] auctions) {
+			if(!auctions.Any()) {
+				return;
+			}
+			var logColor = LoggerColor.Cyan;
+
+			Log.Info($"New auction{(auctions.Length > 1 ? "s" : string.Empty)}!", logColor);
 			foreach(var auction in auctions) {
-				Log.Info(auction.ToString(), LoggerColor.Cyan);
+				Log.Info(auction.ToString(), logColor);
 
 				if(auction.IsForScrapyards) {
 					continue;
@@ -170,6 +192,7 @@
 
 				var elapsedWhileReserving = 0L;
 				try {
+					Log.Info($"Reserving auction '{auction.Uri}'");
 					if(!this.reserver.ReserveAuction(auction, out var alreadyReserved, out elapsedWhileReserving)) {
 						Log.Warning(
 							$@"Could not reserve auction '{auction.Uri}'{(alreadyReserved
@@ -194,11 +217,18 @@
 			}
 		}
 
-		private void NotifyAuctions(IEnumerable<Auction> auctions) {
+		private void NotifyAuctions(Auction[] auctions) {
+			if(!auctions.Any()) {
+				return;
+			}
+			var logColor = LoggerColor.Cyan;
+			Log.Info($"New auction{(auctions.Count() > 1 ? "s" : string.Empty)}!", logColor);
 			foreach(var auction in auctions) {
-				Log.Info(auction.ToString(), LoggerColor.Cyan);
+				Log.Info(auction.ToString(), logColor);
 				this.telegramBot.NotifyNewAuction(auction);
 			}
 		}
 	}
+
+	public record StatusInfo(int Iterations, int IterationsSinceNew, bool PageUpdated, HttpStatusCode ScraperStatus, long LoopTime);
 }

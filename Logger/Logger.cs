@@ -15,7 +15,7 @@ namespace VanBot.Logger {
 
 	public class Log {
 		private const string DatePattern = "yyyy-MM-dd HH:mm:ss";
-		private static readonly string AppenderPattern = $"%date{{{DatePattern}}} %-5level %msg%newline";
+		private static readonly string AppenderPattern = $"%date{{{DatePattern}}} %-5level %message%newline";
 
 		private static readonly ILog Logger;
 

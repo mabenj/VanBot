@@ -17,6 +17,12 @@ namespace VanBot {
 	internal class Program {
 		internal static volatile CancellationTokenSource CancellationTokenSource = new();
 
+		private static void CancelHandler(object sender, ConsoleCancelEventArgs args) {
+			Log.Info("Stopping...");
+			args.Cancel = true;
+			CancellationTokenSource.Cancel(false);
+		}
+
 		private static int HandleParseError(IEnumerable<Error> errs) {
 			Log.Error("Could not parse the command line options");
 			return 1;
@@ -50,10 +56,11 @@ namespace VanBot {
 			}
 
 			try {
+				Console.CancelKeyPress += CancelHandler;
 				var vanBot = new VanBotScraper(options);
 				vanBot.Run(CancellationTokenSource.Token);
 			} catch(Exception e) {
-				Log.Error($"Error: {e.Message}");
+				Log.Error(e.Message);
 				if(!Utilities.IsDebug()) {
 					Console.WriteLine("Press any key to close...");
 					Console.ReadKey();
