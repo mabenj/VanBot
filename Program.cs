@@ -29,6 +29,7 @@ namespace VanBot {
 		}
 
 		private static int Main(string[] args) {
+			ColoredConsoleSupportForWindows.Initialize();
 			return Parser.Default.ParseArguments<Options>(args).MapResult(RunOptions, HandleParseError);
 		}
 
@@ -61,12 +62,12 @@ namespace VanBot {
 				vanBot.Run(CancellationTokenSource.Token);
 			} catch(Exception e) {
 				Log.Error(e.Message);
+				return 1;
+			} finally {
 				if(!Utilities.IsDebug()) {
 					Console.WriteLine("Press any key to close...");
 					Console.ReadKey();
 				}
-
-				return 1;
 			}
 
 			return 0;

@@ -1,8 +1,4 @@
-﻿#region
-
-#endregion
-
-namespace VanBot.Logger {
+﻿namespace VanBot.Logger {
 	using System;
 	using System.Reflection;
 	using System.Text;
