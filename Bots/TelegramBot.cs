@@ -9,7 +9,8 @@ namespace VanBot.Bots {
 	using System.Text;
 	using System.Threading.Tasks;
 
-	using global::VanBot.Utilities;
+	using global::VanBot.Helpers;
+	using global::VanBot.Logger;
 
 	using Newtonsoft.Json;
 	using Newtonsoft.Json.Serialization;
@@ -24,7 +25,7 @@ namespace VanBot.Bots {
 			this.chatKey = chatKey;
 			this.http = new HttpClient();
 			var baseApiUrl = "https://telegram-botti.herokuapp.com/bot";
-			if(Tools.IsDebug()) {
+			if(Utilities.IsDebug()) {
 				//baseApiUrl = "https://b8e0-80-221-79-96.ngrok.io/bot";
 			}
 
@@ -63,7 +64,7 @@ namespace VanBot.Bots {
 				}
 
 				var responseBody = JsonConvert.DeserializeObject<ChatDto>(await response.Content.ReadAsStringAsync());
-				return responseBody.ChatId > 0;
+				return responseBody?.ChatId > 0;
 			} catch(Exception e) {
 				Log.Error($"Error while testing chat key: {e.Message}");
 				return false;
@@ -86,7 +87,7 @@ namespace VanBot.Bots {
 				}
 
 				var responseBody = JsonConvert.DeserializeObject<MessageResponseDto>(await response.Content.ReadAsStringAsync());
-				return responseBody.Ok;
+				return responseBody?.Ok ?? false;
 			} catch(Exception e) {
 				Log.Error($"Error while sending message to the telegram bot: {e.Message}");
 				return false;

@@ -6,7 +6,7 @@ namespace VanBot {
 	using CommandLine;
 
 	public class Options {
-		private const int DefaultInterval = 30;
+		private const int DefaultInterval = 500;
 
 		[Option('i', "interval", Required = false, Default = DefaultInterval, HelpText = "Minimum allowed refresh interval in milliseconds")]
 		public int Interval {
@@ -28,15 +28,14 @@ namespace VanBot {
 		}
 
 		// ReSharper disable once StringLiteralTypo
-		[Option("showhead", Required = false, HelpText = "Should open up Browser")]
-		public bool ShowHead {
+		[Option('t', "telegramkey", Required = false, HelpText = "Key to connect to Telegram bot")]
+		public string TelegramKey {
 			get;
 			set;
 		}
 
-		// ReSharper disable once StringLiteralTypo
-		[Option('t', "telegramkey", Required = false, HelpText = "Key to connect to Telegram bot")]
-		public string TelegramKey {
+		[Option('q', "url", Required = false, HelpText = "Custom url to use for auction detection")]
+		public string Url {
 			get;
 			set;
 		}
