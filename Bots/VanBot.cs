@@ -20,7 +20,7 @@
 		private readonly Reserver reserver;
 		private readonly Scraper scraper;
 		private readonly TelegramBot telegramBot;
-		private readonly int testIteration = -15;
+		private readonly int testIteration = 1;
 		private readonly Stopwatch timer;
 		private readonly string urlToScrape;
 		private Auctions allAuctions;
@@ -182,9 +182,14 @@
 			}
 			var logColor = LoggerColor.Cyan;
 
+			var somethingReserved = false;
 			Log.Info($"New auction{(auctions.Length > 1 ? "s" : string.Empty)}!", logColor);
 			foreach(var auction in auctions) {
 				Log.Info(auction.ToString(), logColor);
+
+				if(somethingReserved) {
+					break;
+				}
 
 				if(auction.IsForScrapyards) {
 					continue;
@@ -192,16 +197,16 @@
 
 				var elapsedWhileReserving = 0L;
 				try {
-					Log.Info($"Reserving auction '{auction.Uri}'");
+					Log.Info($"Reserving auction '{auction.ProductPageUri}'");
 					if(!this.reserver.ReserveAuction(auction, out var alreadyReserved, out elapsedWhileReserving)) {
 						Log.Warning(
-							$@"Could not reserve auction '{auction.Uri}'{(alreadyReserved
+							$@"Could not reserve auction '{auction.ProductPageUri}'{(alreadyReserved
 								? " because it is already reserved" : string.Empty)} ({elapsedWhileReserving} ms)");
 						continue;
 					}
-					auction.ReservationSuccess = true;
+					auction.ReservationSuccess = somethingReserved = true;
 				} catch(ReservationException e) {
-					Log.Error($"Error while reserving auction '{auction.Uri}'  ({elapsedWhileReserving} ms): {e.Message}");
+					Log.Error($"Error while reserving auction '{auction.ProductPageUri}'  ({elapsedWhileReserving} ms): {e.Message}");
 				} finally {
 					auction.ElapsedWhileReserving = elapsedWhileReserving;
 				}
@@ -209,8 +214,18 @@
 
 			foreach(var auction in auctions) {
 				if(auction.ReservationSuccess) {
-					Log.Info($"Auction '{auction.Uri}' successfully reserved ({auction.ElapsedWhileReserving} ms)", LoggerColor.Green);
-					this.telegramBot.NotifyNewReservation(auction);
+					var isExtended = false;
+
+					Log.Info($"Auction '{auction.ProductPageUri}' successfully reserved ({auction.ElapsedWhileReserving} ms)", LoggerColor.Green);
+					Log.Info($"Extending reservation of auction '{auction.ProductPageUri}'");
+					if(!this.reserver.ExtendReservation(auction)) {
+						Log.Warning($"Could not extend reservation of auction '{auction.ProductPageUri}'");
+					} else {
+						isExtended = true;
+						Log.Info($"Auction '{auction.ProductPageUri}' successfully extended");
+					}
+
+					this.telegramBot.NotifyNewReservation(auction, isExtended ? 30 : 3);
 				} else {
 					this.telegramBot.NotifyNewAuction(auction);
 				}

@@ -3,6 +3,8 @@
 
 	using HtmlAgilityPack;
 
+	using VanBot.HttpClients;
+
 	internal class HtmlParser {
 		private readonly HtmlDocument htmlDoc;
 
@@ -11,16 +13,33 @@
 			this.htmlDoc.LoadHtml(html);
 		}
 
+		public ContactDetails GetOrderContactDetails() {
+			var firstName = this.htmlDoc.DocumentNode.SelectSingleNode(".//input[@id=\"first_name\"]").Attributes["value"].Value;
+			var lastName = this.htmlDoc.DocumentNode.SelectSingleNode(".//input[@id=\"last_name\"]").Attributes["value"].Value;
+			var phone = this.htmlDoc.DocumentNode.SelectSingleNode(".//input[@id=\"phone\"]").Attributes["value"].Value;
+			var street = this.htmlDoc.DocumentNode.SelectSingleNode(".//input[@id=\"address_street\"]").Attributes["value"].Value;
+			var zip = this.htmlDoc.DocumentNode.SelectSingleNode(".//input[@id=\"address_zip\"]").Attributes["value"].Value;
+			var city = this.htmlDoc.DocumentNode.SelectSingleNode(".//input[@id=\"address_city\"]").Attributes["value"].Value;
+			var country = this.htmlDoc.DocumentNode.SelectNodes(".//select[@id=\"address_country\"]/option[@selected]")
+				.First(n => !string.IsNullOrWhiteSpace(n.Attributes["value"].Value))
+				.Attributes["value"].Value;
+			return new ContactDetails(firstName, lastName, phone, street, zip, city, country);
+		}
+
+		public string GetOrderStageToken() {
+			const string XPath = "//input[@name=\"stage_token\"]";
+			var inputNode = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);
+			return inputNode?.Attributes["value"].Value;
+		}
+
 		internal string GetLoginCmToken() {
 			const string XPath = "//form[@action=\"https://www.vaurioajoneuvo.fi/kayttajalle/kirjaudu-sisaan/\"]/input[@name=\"cm_token\"]";
-
 			var inputNode = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);
 			return inputNode?.Attributes["value"].Value;
 		}
 
 		internal string GetProductCmToken() {
 			const string XPath = "//form[@data-action=\"reserve-product\"]/input[@name=\"cm_token\"]";
-
 			var inputNode = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);
 			return inputNode?.Attributes["value"].Value;
 		}

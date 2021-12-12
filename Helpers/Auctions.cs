@@ -50,7 +50,7 @@
 					result[url] = new Auction() {
 						IsForScrapyards = Math.Abs(price - (-1.0)) < double.Epsilon,
 						Price = price,
-						Uri = url,
+						ProductPageUri = url,
 						ReservationSuccess = false
 					};
 
@@ -75,7 +75,7 @@
 	public record Auction {
 		private const string MainUrl = "https://www.vaurioajoneuvo.fi";
 
-		public string Uri {
+		public string ProductPageUri {
 			get;
 			internal set;
 		}
@@ -95,7 +95,13 @@
 			set;
 		}
 
-		public string FullUri => new Uri(MainUrl).Append(this.Uri).AbsoluteUri;
+		public string FullProductPageUri => new Uri(MainUrl).Append(this.ProductPageUri).AbsoluteUri;
+
+		public string FullOrderPageUri => new Uri(MainUrl).Append(this.OrderPageUri).AbsoluteUri;
+
+		// ReSharper disable StringLiteralTypo
+		public string OrderPageUri => this.ProductPageUri.Replace("/tuote/", "/tilaus/");
+		// ReSharper restore StringLiteralTypo
 
 		public long ElapsedWhileReserving {
 			get;
@@ -104,7 +110,7 @@
 
 		public override string ToString() {
 			// ReSharper disable once StringLiteralTypo
-			return $"{$"[price: {this.Price}]",-15} {$"[dismantlers only: {(this.IsForScrapyards ? "yes" : "no")}]",-25} {$"[uri: {this.Uri}]",-50}";
+			return $"{$"[price: {this.Price}]",-15} {$"[dismantlers only: {(this.IsForScrapyards ? "yes" : "no")}]",-25} {$"[uri: {this.ProductPageUri}]",-50}";
 		}
 	}
 }

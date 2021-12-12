@@ -43,14 +43,14 @@ namespace VanBot.Bots {
 			// ReSharper disable StringLiteralTypo
 			const string Prefix = "Uus vehje ois tarjolla:";
 			var priceTag = auction.IsForScrapyards ? "Vain purkamoille" : $"{auction.Price}€";
-			var message = $"{Prefix} {auction.FullUri} \r\nHinta: <b>{priceTag}</b>";
+			var message = $"{Prefix} {auction.FullProductPageUri} \r\nHinta: <b>{priceTag}</b>";
 			// ReSharper restore StringLiteralTypo
 			Task.Run(() => this.SendMessage(message));
 		}
 
-		public void NotifyNewReservation(Auction auction) {
+		public void NotifyNewReservation(Auction auction, int reservationMinutes) {
 			// ReSharper disable StringLiteralTypo
-			var message = $"Tää vehje ois <b>varattu</b>\r\n{auction.FullUri}";
+			var message = $"Tää vehje ois <b>varattu</b> (<i>{reservationMinutes} min</i>)\r\n{auction.FullProductPageUri}";
 			// ReSharper restore StringLiteralTypo
 			Task.Run(() => this.SendMessage(message));
 		}
