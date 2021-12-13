@@ -32,6 +32,22 @@
 			return inputNode?.Attributes["value"].Value;
 		}
 
+		public long GetReservedAuctionExpiration() {
+			const string XPath = "//span[@data-expiration]";
+			var expirationSpan = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);
+			if(long.TryParse(expirationSpan?.Attributes["data-expiration"]?.Value ?? string.Empty, out var unixTimestamp)) {
+				return unixTimestamp;
+			}
+			return -1L;
+		}
+
+		public string GetReservedAuctionUri() {
+			// ReSharper disable once StringLiteralTypo
+			const string XPath = "//td[@data-label=\"Kohde\"]/a";
+			var anchorTag = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);
+			return anchorTag?.Attributes["href"]?.Value;
+		}
+
 		internal string GetLoginCmToken() {
 			const string XPath = "//form[@action=\"https://www.vaurioajoneuvo.fi/kayttajalle/kirjaudu-sisaan/\"]/input[@name=\"cm_token\"]";
 			var inputNode = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);

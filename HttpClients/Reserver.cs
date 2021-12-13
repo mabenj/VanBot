@@ -1,7 +1,6 @@
 ﻿namespace VanBot.HttpClients {
 	using System;
 	using System.Collections.Generic;
-	using System.Diagnostics;
 	using System.Linq;
 	using System.Net;
 	using System.Net.Http;
@@ -10,37 +9,22 @@
 
 	using Newtonsoft.Json;
 
+	using VanBot.Auctions;
 	using VanBot.Exceptions;
 	using VanBot.Helpers;
+	using VanBot.Settings;
 
 	internal class Reserver {
-		private const string SelectedPaymentMethod = "Siirto";
-
-		private static readonly Dictionary<string, string> PaymentMethods = new() {
-			// ReSharper disable StringLiteralTypo
-			{"Handelsbanken", "handelsbanken-e-payment"},
-			{"Danske Bank", "sampo-web-payment"},
-			{"S-Pankki", "s-pankki-verkkomaksu"},
-			{"Nordea", "nordea-e-payment"},
-			{"Pop", "pop-pankin-verkkomaksu"},
-			{"Säästöpankki", "saastopankin-verkkomaksu"},
-			{"Siirto", "siirto"},
-			{"Oma Säästöpankki", "oma-saastopankin-verkkomaksu"},
-			{"Ålandsbanken", "alandsbanken-e-payment"},
-			{"Osuuspankki", "op-pohjola-verkkomaksu"},
-			{"Aktia", "aktia-maksu"},
-			// ReSharper restore StringLiteralTypo
-		};
-
 		private readonly CookieContainer cookies;
 		private readonly HttpClient httpClient;
 		private readonly string password;
-		private readonly Stopwatch timer;
+		private readonly PaymentMethod paymentMethod;
 		private readonly string username;
 
-		internal Reserver(string username, string password) {
+		internal Reserver(string username, string password, PaymentMethod paymentMethod) {
 			this.username = username;
 			this.password = password;
+			this.paymentMethod = paymentMethod;
 			this.cookies = new CookieContainer();
 			var handler = new HttpClientHandler() {
 				CookieContainer = this.cookies,
@@ -48,51 +32,66 @@
 				UseDefaultCredentials = false
 			};
 			this.httpClient = new HttpClient(handler);
-			this.timer = new Stopwatch();
 		}
 
-		public bool ExtendReservation(Auction auction) {
-			var orderUrl = auction.FullOrderPageUri;
-			var (stageToken, contactDetails) = this.GetStageTokenAndContactDetails(orderUrl, out var error);
-
-			using var request = new HttpRequestMessage(HttpMethod.Post, orderUrl);
-			var postData = new Dictionary<string, string>() {
-				{"stage_token", stageToken},
-				{"first_name", contactDetails.FirstName},
-				{"last_name", contactDetails.LastName},
-				{"phone", contactDetails.PhoneNumber},
-				{"address_street", contactDetails.Street},
-				{"address_zip", contactDetails.Zip},
-				{"address_city", contactDetails.City},
-				{"address_country", contactDetails.Country},
-				{"details_ok[]", "1"},
-				{"payment_method", "9"},
-				{"stage-payment-provider", PaymentMethods[SelectedPaymentMethod]}
-			};
-			request.Content = new FormUrlEncodedContent(postData);
-			request.Headers.Referrer = new Uri(orderUrl);
-			// ReSharper disable once AccessToDisposedClosure
-			var response = Task.Run(() => this.httpClient.SendAsync(request)).Result;
-			return response.StatusCode == HttpStatusCode.OK;
-		}
-
-		public bool ReserveAuction(Auction auction, out bool alreadyReserved, out long elapsedWhileReserving) {
-			alreadyReserved = false;
-			this.timer.Restart();
-
+		public void AttemptToReserveAuction(Auction auction) {
 			try {
 				var (productUuid, cmToken) = this.GetProductUuidAndCmToken(auction.FullProductPageUri, out var error);
 				if(error != null) {
 					throw new ReservationException(error);
 				}
 
-				return this.SendReservationRequest(auction.FullProductPageUri, productUuid, cmToken);
+				this.SendReservationRequest(auction.FullProductPageUri, productUuid, cmToken);
 			} catch(Exception e) {
-				throw new ReservationException($"Could not reserve auction '{auction.ProductPageUri}': {e.Message}", e);
-			} finally {
-				this.timer.Stop();
-				elapsedWhileReserving = this.timer.ElapsedMilliseconds;
+				throw new ReservationException($"Could not reserve auction '{auction.Name}': {e.Message}", e);
 			}
+		}
+
+		public void ExtendReservation(Auction auction, ref long expirationTime) {
+			var orderUrl = auction.FullOrderPageUri;
+			var (stageToken, contactDetails) = this.GetStageTokenAndContactDetails(orderUrl, out var error);
+			if(error != null) {
+				throw new ReservationException(error);
+			}
+			if(stageToken == null) {
+				throw new ReservationException($"Could not fetch stage token from '{orderUrl}'");
+			}
+			if(contactDetails == null) {
+				throw new ReservationException($"Could not fetch contact details from '{orderUrl}'");
+			}
+
+			using var request = new HttpRequestMessage(HttpMethod.Post, orderUrl);
+			var postData = new Dictionary<string, string>() {
+				{ "stage_token", stageToken },
+				{ "first_name", contactDetails.FirstName },
+				{ "last_name", contactDetails.LastName },
+				{ "phone", contactDetails.PhoneNumber },
+				{ "address_street", contactDetails.Street },
+				{ "address_zip", contactDetails.Zip },
+				{ "address_city", contactDetails.City },
+				{ "address_country", contactDetails.Country },
+				{ "details_ok[]", "1" },
+				{ "payment_method", "9" },
+				{ "stage-payment-provider", this.paymentMethod.Name }
+			};
+			request.Content = new FormUrlEncodedContent(postData);
+			request.Headers.Referrer = new Uri(orderUrl);
+			// ReSharper disable once AccessToDisposedClosure
+			var response = Task.Run(() => this.httpClient.SendAsync(request)).Result;
+			if(!response.IsSuccessStatusCode) {
+				throw new ReservationException($"Extend-reservation request responded with status {(int) response.StatusCode} ({response.StatusCode})");
+			}
+			_ = this.GetReservedAuctionName(out expirationTime);
+		}
+
+		public string GetReservedAuctionName(out long expirationTime) {
+			// ReSharper disable once StringLiteralTypo
+			const string Url = "https://www.vaurioajoneuvo.fi/kayttajalle/omat-tiedot/#tilaukset";
+			var html = this.GetHtml(Url, out _);
+			var htmlParser = new HtmlParser(html);
+			expirationTime = htmlParser.GetReservedAuctionExpiration();
+			// ReSharper disable once StringLiteralTypo
+			return htmlParser.GetReservedAuctionUri().Replace("/tuote/", string.Empty);
 		}
 
 		internal void Initialize(out string[] errors) {
@@ -160,11 +159,11 @@
 
 			using var request = new HttpRequestMessage(HttpMethod.Post, LoginUrl);
 			var postData = new Dictionary<string, string>() {
-				{"cm_token", cmToken},
+				{ "cm_token", cmToken },
 				// ReSharper disable once StringLiteralTypo
-				{"stage-extranet-from", string.Empty},
-				{"username", this.username},
-				{"password", this.password}
+				{ "stage-extranet-from", string.Empty },
+				{ "username", this.username },
+				{ "password", this.password }
 			};
 			request.Content = new FormUrlEncodedContent(postData);
 			request.Headers.Referrer = new Uri(Referer);
@@ -173,19 +172,17 @@
 			return responseCookies.Any(c => c.Name == "svt-extranet-name") ? null : "Failed to login";
 		}
 
-		private bool SendReservationRequest(string productPageUrl, string productUuid, string cmToken) {
+		private void SendReservationRequest(string productPageUrl, string productUuid, string cmToken) {
 			var reservationUrl = $"https://www.vaurioajoneuvo.fi/api/1.0.0/product/{productUuid}/reserve/";
 			using var request = new HttpRequestMessage(HttpMethod.Post, reservationUrl);
 			var payload = JsonConvert.SerializeObject(new CmTokenDto(cmToken));
-			request.Content = new StringContent(payload, Encoding.ASCII, "application/json");
+			request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 			if(request.Content.Headers.ContentType != null) {
 				request.Content.Headers.ContentType.CharSet = string.Empty;
 			}
 			request.Headers.Referrer = new Uri(productPageUrl);
 			request.Headers.Add("X-Requested-With", "XMLHttpRequest");
-			// ReSharper disable once AccessToDisposedClosure
-			var response = Task.Run(() => this.httpClient.SendAsync(request)).Result; // TODO: might want to continue once sent and not wait for response
-			return response.IsSuccessStatusCode;
+			this.httpClient.SendAsync(request);
 		}
 
 		private async Task<string> SetSvtBuyersCookie() {

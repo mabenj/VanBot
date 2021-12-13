@@ -1,8 +1,7 @@
 {
   "profiles": {
     "van-bot-net": {
-      "commandName": "Project",
-      "commandLineArgs": "-u \"markobenj@hotmail.com\" -p \"\" -t \"TIRU\" -i 1000"
+      "commandName": "Project"
     }
   }
 }

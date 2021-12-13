@@ -9,6 +9,7 @@ namespace VanBot.Bots {
 	using System.Text;
 	using System.Threading.Tasks;
 
+	using global::VanBot.Auctions;
 	using global::VanBot.Helpers;
 	using global::VanBot.Logger;
 
@@ -43,14 +44,18 @@ namespace VanBot.Bots {
 			// ReSharper disable StringLiteralTypo
 			const string Prefix = "Uus vehje ois tarjolla:";
 			var priceTag = auction.IsForScrapyards ? "Vain purkamoille" : $"{auction.Price}€";
-			var message = $"{Prefix} {auction.FullProductPageUri} \r\nHinta: <b>{priceTag}</b>";
+			var message = $"{Prefix}\r\n"
+				+ $"{auction.FullProductPageUri}\r\n"
+				+ $"Hinta: <b>{priceTag}</b>";
 			// ReSharper restore StringLiteralTypo
 			Task.Run(() => this.SendMessage(message));
 		}
 
-		public void NotifyNewReservation(Auction auction, int reservationMinutes) {
+		public void NotifyNewReservation(Auction auction, TimeSpan reservedFor) {
 			// ReSharper disable StringLiteralTypo
-			var message = $"Tää vehje ois <b>varattu</b> (<i>{reservationMinutes} min</i>)\r\n{auction.FullProductPageUri}";
+			var message = $"Tää vehje ois <b>varattu</b> (<i>{reservedFor.Minutes} min {reservedFor.Seconds} s</i>)\r\n"
+				+ $"{auction.FullProductPageUri}\r\n"
+				+ $"Hinta: <b>{auction.Price}€</b>\r\n";
 			// ReSharper restore StringLiteralTypo
 			Task.Run(() => this.SendMessage(message));
 		}
