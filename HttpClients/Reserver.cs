@@ -91,7 +91,7 @@
 			var htmlParser = new HtmlParser(html);
 			expirationTime = htmlParser.GetReservedAuctionExpiration();
 			// ReSharper disable once StringLiteralTypo
-			return htmlParser.GetReservedAuctionUri().Replace("/tuote/", string.Empty);
+			return htmlParser.GetReservedAuctionUri()?.Replace("/tuote/", string.Empty);
 		}
 
 		internal void Initialize(out string[] errors) {

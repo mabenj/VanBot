@@ -93,7 +93,7 @@
 
 					pageUpdated = hashValue != currentHashValue;
 					if(pageUpdated) {
-						currentAuctions = AuctionCollection.ParseFromHtml(currentHtml, null, this.allAuctions);
+						currentAuctions = AuctionCollection.ParseFromHtml(currentHtml, this.allAuctions, (message) => Log.Info(message, LoggerColor.Cyan));
 						var (addedAuctions, removedAuctions) = AuctionCollection.GetAddedAndRemoved(this.allAuctions, currentAuctions);
 
 						if(this.shouldTryToReserve) {
@@ -153,7 +153,7 @@
 			var formattedStatus = $"[req: {reqColor}{statusInfo.Iterations}{LoggerColor.Reset}]"
 				+ $" [req_since_new: {reqColor}{statusInfo.IterationsSinceNew}{LoggerColor.Reset}]"
 				+ $" [page_updated: {updatedColor}{(statusInfo.PageUpdated ? $"yes{LoggerColor.Reset}]" : $"no{LoggerColor.Reset}]"),-5}"
-				+ $" [scraper_status: {statusColor}{$"{(int) statusInfo.ScraperStatus}{LoggerColor.Reset} ({statusInfo.ScraperStatus})]",-10}"
+				+ $" [scraper_status: {$"{(int) statusInfo.ScraperStatus} ({statusColor}{statusInfo.ScraperStatus}{LoggerColor.Reset})]",-10}"
 				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]";
 			Log.Info(formattedStatus);
 		}
@@ -181,11 +181,7 @@
 			if(!auctions.Any()) {
 				return;
 			}
-			var logColor = LoggerColor.Cyan;
-
-			Log.Info($"New auction{(auctions.Count() > 1 ? "s" : string.Empty)}! ({auctions.Count()})", logColor);
 			foreach(var auction in auctions) {
-				Log.Info(auction.ToString(), logColor);
 				if(auction.IsForScrapyards) {
 					continue;
 				}
@@ -200,16 +196,21 @@
 
 			this.Wait(2000); // wait for the reservation to go through
 			var reservedAuctionName = this.reserver.GetReservedAuctionName(out var expirationTime);
-			if(this.IsTestRun && reservedAuctionName != null) {
-				reservedAuctionName += "/?foo=bar";
-			}
-			if(reservedAuctionName != null && this.shouldTryToExtend) {
-				var reservedAuction = auctions[reservedAuctionName];
-				Log.Info($"Extending reservation of '{reservedAuction.Name}'");
-				try {
-					this.reserver.ExtendReservation(reservedAuction, ref expirationTime);
-				} catch(ReservationException e) {
-					Log.Error($"Error while extending reservation '{reservedAuction.Name}': {e.Message}");
+
+			if(reservedAuctionName == null) {
+				Log.Error("Could not reserve any auctions");
+			} else {
+				if(this.IsTestRun) {
+					reservedAuctionName += "/?foo=bar";
+				}
+				if(this.shouldTryToExtend) {
+					var reservedAuction = auctions[reservedAuctionName];
+					Log.Info($"Extending reservation of '{reservedAuction.Name}'");
+					try {
+						this.reserver.ExtendReservation(reservedAuction, ref expirationTime);
+					} catch(ReservationException e) {
+						Log.Error($"Error while extending reservation '{reservedAuction.Name}': {e.Message}");
+					}
 				}
 			}
 

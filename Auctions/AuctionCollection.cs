@@ -51,7 +51,11 @@
 
 		public string[] GetKeys() => this.auctions.Keys.ToArray();
 
-		internal static AuctionCollection ParseFromHtml(string html, Action<string> logFunction, AuctionCollection existingAuctionCollection = null) {
+		internal static AuctionCollection ParseFromHtml(string html, Action<string> logFunction = null) {
+			return ParseFromHtml(html, null, logFunction);
+		}
+
+		internal static AuctionCollection ParseFromHtml(string html, AuctionCollection existingAuctionCollection = null, Action<string> logFunction = null) {
 			var result = new AuctionCollection();
 			var htmlDoc = new HtmlDocument();
 			htmlDoc.LoadHtml(html);

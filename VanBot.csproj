@@ -5,7 +5,7 @@
     <TargetFramework>net5.0</TargetFramework>
     <RootNamespace>VanBot</RootNamespace>
     <AssemblyName>VanBot</AssemblyName>
-    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <ApplicationIcon>icon2.ico</ApplicationIcon>
 	<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
 	<SignAssembly>false</SignAssembly>
 	<AssemblyOriginatorKeyFile>keyfile.pfx</AssemblyOriginatorKeyFile>

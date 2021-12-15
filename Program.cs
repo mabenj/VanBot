@@ -36,7 +36,7 @@ namespace VanBot {
 
 		private static void LogSettings(Options options) {
 			const int Padding = -18;
-			Log.Info("Using settings:");
+			Log.Info("SETTINGS:");
 			Log.Info($"{"Update interval ms",Padding} = {options.Interval}");
 			Log.Info($"{"Username",Padding} = {options.Username}");
 			Log.Info($"{"Password",Padding} = {new string('*', options.Password.Length)}");
