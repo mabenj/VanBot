@@ -10,5 +10,9 @@ namespace VanBot.Helpers {
 		public static Uri Append(this Uri uri, params string[] paths) {
 			return new(paths.Aggregate(uri.AbsoluteUri, (current, path) => $"{current.TrimEnd('/')}/{path.TrimStart('/')}"));
 		}
+
+		public static string Truncate(this string value, int maxLength, string truncationSuffix = "...") {
+			return value?.Length > maxLength ? $"{value[..maxLength]}{truncationSuffix}" : value;
+		}
 	}
 }

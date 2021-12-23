@@ -1,4 +1,4 @@
-﻿namespace VanBot.HttpClients {
+﻿namespace VanBot.Services {
 	using System;
 	using System.Collections.Generic;
 	using System.Linq;
@@ -14,14 +14,14 @@
 	using VanBot.Helpers;
 	using VanBot.Settings;
 
-	internal class Reserver {
+	internal class ReserveService {
 		private readonly CookieContainer cookies;
 		private readonly HttpClient httpClient;
 		private readonly string password;
 		private readonly PaymentMethod paymentMethod;
 		private readonly string username;
 
-		internal Reserver(string username, string password, PaymentMethod paymentMethod) {
+		internal ReserveService(string username, string password, PaymentMethod paymentMethod) {
 			this.username = username;
 			this.password = password;
 			this.paymentMethod = paymentMethod;
@@ -43,7 +43,7 @@
 
 				this.SendReservationRequest(auction.FullProductPageUri, productUuid, cmToken);
 			} catch(Exception e) {
-				throw new ReservationException($"Could not reserve auction '{auction.Name}': {e.Message}", e);
+				throw new ReservationException(e.Message, e);
 			}
 		}
 
@@ -81,17 +81,22 @@
 			if(!response.IsSuccessStatusCode) {
 				throw new ReservationException($"Extend-reservation request responded with status {(int) response.StatusCode} ({response.StatusCode})");
 			}
-			_ = this.GetReservedAuctionName(out expirationTime);
+			_ = this.GetReservedAuctionSlug(out expirationTime);
 		}
 
-		public string GetReservedAuctionName(out long expirationTime) {
-			// ReSharper disable once StringLiteralTypo
-			const string Url = "https://www.vaurioajoneuvo.fi/kayttajalle/omat-tiedot/#tilaukset";
-			var html = this.GetHtml(Url, out _);
-			var htmlParser = new HtmlParser(html);
-			expirationTime = htmlParser.GetReservedAuctionExpiration();
-			// ReSharper disable once StringLiteralTypo
-			return htmlParser.GetReservedAuctionUri()?.Replace("/tuote/", string.Empty);
+		public string GetReservedAuctionSlug(out long expirationTime) {
+			try {
+				// ReSharper disable once StringLiteralTypo
+				const string Url = "https://www.vaurioajoneuvo.fi/kayttajalle/omat-tiedot/#tilaukset";
+				var html = this.GetHtml(Url, out _);
+				var htmlParser = new HtmlParser(html);
+				expirationTime = htmlParser.GetReservedAuctionExpiration();
+				// ReSharper disable once StringLiteralTypo
+				return htmlParser.GetReservedAuctionUri()?.Replace("/tuote/", string.Empty);
+			} catch {
+				expirationTime = -1;
+				return null;
+			}
 		}
 
 		internal void Initialize(out string[] errors) {
@@ -125,6 +130,10 @@
 			}
 
 			var htmlParser = new HtmlParser(html);
+			if(htmlParser.IsAuctionAlreadyReserved()) {
+				error = "Auction is already reserved";
+				return (null, null);
+			}
 			var productUuid = htmlParser.GetProductUuid();
 			var cmToken = htmlParser.GetProductCmToken();
 

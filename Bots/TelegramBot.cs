@@ -34,9 +34,15 @@ namespace VanBot.Bots {
 			this.testChatKeyApiUrl = $"{baseApiUrl}/chatKey";
 		}
 
-		public async void NotifyCaptcha() {
+		public void NotifyCaptcha() {
 			// ReSharper disable StringLiteralTypo
-			await this.SendMessage("Ne luulee et oon botti. Käy tekemäs captcha ja käynnistä uudelleen.");
+			Task.Run(() => this.SendMessage("Siel on captcha :S"));
+			// ReSharper restore StringLiteralTypo
+		}
+
+		public void NotifyCrash() {
+			// ReSharper disable StringLiteralTypo
+			Task.Run(() => this.SendMessage("Botti kaatui :("));
 			// ReSharper restore StringLiteralTypo
 		}
 
@@ -55,7 +61,7 @@ namespace VanBot.Bots {
 			// ReSharper disable StringLiteralTypo
 			var message = $"Tää vehje ois <b>varattu</b> (<i>{reservedFor.Minutes} min {reservedFor.Seconds} s</i>)\r\n"
 				+ $"{auction.FullProductPageUri}\r\n"
-				+ $"Hinta: <b>{auction.Price}€</b>\r\n";
+				+ $"Hinta: <b>{auction.Price}€</b>";
 			// ReSharper restore StringLiteralTypo
 			Task.Run(() => this.SendMessage(message));
 		}

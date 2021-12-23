@@ -27,6 +27,10 @@ namespace VanBot {
 			Log.Info("Stopping...");
 			args.Cancel = true;
 			CancellationTokenSource.Cancel(false);
+			if(!Utilities.IsDebug()) {
+				Console.WriteLine("Press any key to close...");
+				Console.ReadKey();
+			}
 		}
 
 		private static int HandleParseError(IEnumerable<Error> errs) {

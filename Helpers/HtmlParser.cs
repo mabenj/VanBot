@@ -3,7 +3,7 @@
 
 	using HtmlAgilityPack;
 
-	using VanBot.HttpClients;
+	using VanBot.Services;
 
 	internal class HtmlParser {
 		private readonly HtmlDocument htmlDoc;
@@ -86,6 +86,12 @@
 			}
 
 			return null;
+		}
+
+		internal bool IsAuctionAlreadyReserved() {
+			const string XPath = "//form[@data-action=\"reserve-product\"]/button[@disabled]";
+			var buttonNode = this.htmlDoc.DocumentNode.SelectSingleNode(XPath);
+			return buttonNode != null;
 		}
 	}
 }

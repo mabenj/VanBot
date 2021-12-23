@@ -5,9 +5,6 @@
 namespace VanBot.Helpers {
 	using System;
 	using System.Linq;
-	using System.Text;
-
-	using Force.Crc32;
 
 	public class Utilities {
 		public static (T[], T[]) GetAddedAndRemoved<T>(T[] previous, T[] current) {
@@ -46,19 +43,10 @@ namespace VanBot.Helpers {
 			return pass;
 		}
 
-		internal static uint CalculateCrc32(string input) {
-			return Crc32Algorithm.Compute(Encoding.ASCII.GetBytes(input));
-		}
-
 		internal static bool PromptForConfirmation(string message) {
 			Console.Write(message);
 			var answer = Console.ReadLine()?.ToLower();
 			return new[] { "y", "yes", "true" }.Contains(answer);
-		}
-
-		internal static DateTime UnixTimestampToDateTime(long timestamp) {
-			var origin = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-			return origin.AddSeconds((double) timestamp);
 		}
 	}
 }
