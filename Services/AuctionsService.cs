@@ -1,12 +1,16 @@
 ﻿namespace VanBot.Services {
 	using System;
 	using System.Collections.Generic;
+	using System.Linq;
 	using System.Net.Http;
+	using System.Net.Http.Headers;
 	using System.Text;
 	using System.Threading.Tasks;
 	using System.Web;
 
 	using Newtonsoft.Json;
+
+	using RandomUserAgent;
 
 	using VanBot.Auctions;
 	using VanBot.Exceptions;
@@ -23,18 +27,43 @@
 		private const string Referer = "https://www.vaurioajoneuvo.fi/";
 		private const string SaleConditionKey = "sale_condition";
 		private const string TypeKey = "type";
-		private readonly string fullApiUrl;
 
 		private readonly HttpClient httpClient;
+		private readonly string nonce;
+		private readonly string originalFullApiUrl;
+		private readonly Random random;
+		private int requestCounter;
 
 		internal AuctionsService(string urlWithQuery) {
 			this.httpClient = new HttpClient();
 			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(Referer);
-			this.fullApiUrl = GetFullApiUrl(urlWithQuery);
+
+			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+			this.httpClient.DefaultRequestHeaders.AcceptEncoding.ParseAdd("compress");
+			this.httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-GB,en-US;q=0.9,en;q=0.8");
+			this.httpClient.DefaultRequestHeaders.Connection.ParseAdd("close");
+			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
+				NoCache = true
+			};
+			this.httpClient.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+			this.httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
+			this.httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
+			this.httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "same-origin");
+			this.httpClient.DefaultRequestHeaders.Add("Sec-GPC", "1");
+
+			this.originalFullApiUrl = GetFullApiUrl(urlWithQuery);
+			this.requestCounter = 0;
+			this.nonce = Guid.NewGuid().ToString("n")[..4];
+			this.random = new Random();
 		}
 
-		internal AuctionCollection GetAuctions() {
-			var response = Task.Run(() => this.httpClient.GetAsync(this.fullApiUrl)).Result;
+		private string FullApiUrl => $"{this.originalFullApiUrl}&[{this.nonce}{++this.requestCounter}]";
+
+		internal AuctionCollection GetAuctions(out int rateLimitRemaining) {
+			this.httpClient.DefaultRequestHeaders.UserAgent.Clear();
+			while(!this.httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(RandomUa.RandomUserAgent)) { }
+
+			var response = Task.Run(() => this.httpClient.GetAsync(this.FullApiUrl)).Result;
 
 			if(response.Headers.Contains("X-Robots-Tag")) {
 				throw new CaptchaException("Encountered captcha while fetching auctions");
@@ -45,6 +74,7 @@
 			if(result?.Status != "OK") {
 				throw new Exception($"Could not fetch auctions: {result?.Status}");
 			}
+			rateLimitRemaining = Convert.ToInt32(response.Headers.TryGetValues("X-RateLimit-Remaining", out var values) ? values.First() : "-1");
 			return AuctionCollection.FromEnumerable(result.Auctions);
 		}
 

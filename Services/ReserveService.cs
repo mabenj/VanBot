@@ -161,10 +161,13 @@
 
 			var loginPageHtml = this.GetHtml(LoginUrl, out var status);
 			if(status != HttpStatusCode.OK) {
-				return $"Failed to fetch cm_token from login page: status {(int) status}";
+				return $"Failed to fetch login page HTML: status {(int) status}";
 			}
 			var htmlParser = new HtmlParser(loginPageHtml);
 			var cmToken = htmlParser.GetLoginCmToken();
+			if(cmToken == null) {
+				return "Failed to fetch cm_token from login page";
+			}
 
 			using var request = new HttpRequestMessage(HttpMethod.Post, LoginUrl);
 			var postData = new Dictionary<string, string>() {

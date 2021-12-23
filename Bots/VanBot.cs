@@ -17,14 +17,16 @@
 		private const int NumberOfMockAuctions = 4;
 
 		private readonly AuctionsService auctionsService;
-		private readonly TimeSpan interval;
+		private readonly Random random;
 		private readonly ReserveService reserveService;
 		private readonly bool shouldTryToExtend;
+		private readonly int sleepTimeRangeMax;
 		private readonly TelegramBot telegramBot;
 		private readonly int testIteration;
 		private readonly Stopwatch timer;
 		private AuctionCollection allAuctions;
 		private CancellationToken cancellationToken;
+		private readonly TimeSpan interval;
 		private int iterations;
 		private int iterationsSinceNew;
 		private bool shouldTryToReserve;
@@ -34,13 +36,15 @@
 			this.iterationsSinceNew = 0;
 			this.reserveService = new ReserveService(options.Username, options.Password, options.PaymentMethod);
 			this.telegramBot = new TelegramBot(options.TelegramKey);
-			this.interval = TimeSpan.FromMilliseconds(options.Interval);
 			this.timer = new Stopwatch();
 			this.allAuctions = new AuctionCollection();
 			this.shouldTryToReserve = !options.NoSignIn;
 			this.shouldTryToExtend = options.PaymentMethod != PaymentMethod.None;
 			this.testIteration = options.TestIteration;
 			this.auctionsService = new AuctionsService(options.Url);
+			this.random = new Random();
+			this.sleepTimeRangeMax = options.Interval;
+			this.interval = TimeSpan.FromMilliseconds(options.Interval);
 		}
 
 		private bool IsTestRun => this.iterations == this.testIteration;
@@ -62,7 +66,7 @@
 			}
 
 			Log.Info("Fetching initial auctions");
-			this.allAuctions = this.auctionsService.GetAuctions();
+			this.allAuctions = this.auctionsService.GetAuctions(out var rateLimitRemaining);
 			foreach(var auction in this.allAuctions) {
 				Log.Info(auction.ToString(), LoggerColor.Cyan);
 			}
@@ -76,7 +80,7 @@
 				AuctionCollection currentAuctions = null;
 
 				try {
-					currentAuctions = this.auctionsService.GetAuctions();
+					currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining);
 
 					if(this.IsTestRun) {
 						currentAuctions.AddMockAuctions(NumberOfMockAuctions);
@@ -113,9 +117,11 @@
 						new StatusInfo(
 							this.iterations,
 							this.iterationsSinceNew,
-							this.timer.ElapsedMilliseconds
+							this.timer.ElapsedMilliseconds,
+							rateLimitRemaining
 						));
-					var sleepTime = this.interval - this.timer.Elapsed;
+					var sleepTime = TimeSpan.FromMilliseconds(this.random.Next(0, this.sleepTimeRangeMax));
+					sleepTime = this.interval - this.timer.Elapsed;
 					if(sleepTime.TotalMilliseconds > 0) {
 						this.Wait(Convert.ToInt32(sleepTime.TotalMilliseconds));
 					}
@@ -135,7 +141,8 @@
 
 			var formattedStatus = $"[req: {reqColor}{statusInfo.Iterations}{LoggerColor.Reset}]"
 				+ $" [req_since_new: {reqColor}{statusInfo.IterationsSinceNew}{LoggerColor.Reset}]"
-				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]";
+				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]"
+				+ $" [rate_limit_remaining: {statusInfo.RateLimitRemaining}]";
 			Log.Info(formattedStatus);
 		}
 
@@ -218,5 +225,5 @@
 		}
 	}
 
-	public record StatusInfo(int Iterations, int IterationsSinceNew, long LoopTime);
+	public record StatusInfo(int Iterations, int IterationsSinceNew, long LoopTime, int RateLimitRemaining);
 }
