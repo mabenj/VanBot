@@ -1,4 +1,5 @@
 ﻿namespace VanBot.Settings {
+	using System;
 	using System.Linq;
 #pragma warning disable 660,661
 	public class PaymentMethod {
@@ -22,7 +23,7 @@
 			var paymentMethod = AllPaymentMethods
 					.FirstOrDefault(pm => pm.Name == name || pm.DisplayName.ToLowerInvariant() == name)
 				// ReSharper disable once StringLiteralTypo
-				?? AllPaymentMethods.First(pm => pm.Name == "none");
+				?? throw new ArgumentException("Unknown payment method", name);
 			this.Name = paymentMethod.Name;
 			this.DisplayName = paymentMethod.DisplayName;
 		}

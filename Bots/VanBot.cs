@@ -14,40 +14,36 @@
 
 	public class VanBot {
 		private const int ConsecutiveErrorsThreshold = 10;
+		private const int LowRateLimitThreshold = 5;
 		private const int NumberOfMockAuctions = 4;
+		private const int RateLimitCooldownMinutes = 4;
 
 		private readonly AuctionsService auctionsService;
-		private readonly Random random;
+		private readonly TimeSpan interval;
 		private readonly ReserveService reserveService;
 		private readonly bool shouldTryToExtend;
-		private readonly int sleepTimeRangeMax;
 		private readonly TelegramBot telegramBot;
 		private readonly int testIteration;
 		private readonly Stopwatch timer;
 		private AuctionCollection allAuctions;
 		private CancellationToken cancellationToken;
-		private readonly TimeSpan interval;
-		private int iterations;
-		private int iterationsSinceNew;
+		private int requestsSinceNew;
 		private bool shouldTryToReserve;
 
 		public VanBot(Options options) {
-			this.iterations = 0;
-			this.iterationsSinceNew = 0;
 			this.reserveService = new ReserveService(options.Username, options.Password, options.PaymentMethod);
+			this.auctionsService = new AuctionsService(options.Url);
 			this.telegramBot = new TelegramBot(options.TelegramKey);
 			this.timer = new Stopwatch();
 			this.allAuctions = new AuctionCollection();
 			this.shouldTryToReserve = !options.NoSignIn;
 			this.shouldTryToExtend = options.PaymentMethod != PaymentMethod.None;
 			this.testIteration = options.TestIteration;
-			this.auctionsService = new AuctionsService(options.Url);
-			this.random = new Random();
-			this.sleepTimeRangeMax = options.Interval;
+			this.requestsSinceNew = this.auctionsService.RequestsMade;
 			this.interval = TimeSpan.FromMilliseconds(options.Interval);
 		}
 
-		private bool IsTestRun => this.iterations == this.testIteration;
+		private bool IsTestRun => this.auctionsService.RequestsMade == this.testIteration;
 
 		internal void Run(CancellationToken token) {
 			this.cancellationToken = token;
@@ -75,8 +71,7 @@
 			Log.Info("Waiting for new auctions...");
 			while(!this.cancellationToken.IsCancellationRequested && consecutiveErrors < ConsecutiveErrorsThreshold) {
 				this.timer.Restart();
-				this.iterations++;
-				this.iterationsSinceNew++;
+				this.requestsSinceNew++;
 				AuctionCollection currentAuctions = null;
 
 				try {
@@ -99,14 +94,17 @@
 					}
 
 					if(addedAuctions.Any()) {
-						this.iterationsSinceNew = 0;
+						this.requestsSinceNew = 0;
 					}
 					consecutiveErrors = 0;
 				} catch(CaptchaException e) {
 					Log.Error(e.Message);
-					// TODO: prompt to complete the captcha
-					consecutiveErrors++;
+					Log.Error("Complete the captcha before continuing");
 					this.telegramBot.NotifyCaptcha();
+					if(!Utilities.PromptForConfirmation("Continue? (y/n):")) {
+						break;
+					}
+					consecutiveErrors++;
 				} catch(Exception e) {
 					Log.Error(e.Message);
 					consecutiveErrors++;
@@ -115,13 +113,19 @@
 					this.timer.Stop();
 					LogStatus(
 						new StatusInfo(
-							this.iterations,
-							this.iterationsSinceNew,
+							this.auctionsService.RequestsMade,
+							this.requestsSinceNew,
 							this.timer.ElapsedMilliseconds,
 							rateLimitRemaining
 						));
-					var sleepTime = TimeSpan.FromMilliseconds(this.random.Next(0, this.sleepTimeRangeMax));
-					sleepTime = this.interval - this.timer.Elapsed;
+					var sleepTime = this.interval - this.timer.Elapsed;
+
+					if(rateLimitRemaining is > -1 and < LowRateLimitThreshold) {
+						Log.Warning($"Remaining rate limit is below {LowRateLimitThreshold}");
+						Log.Warning($"Cooling down for {RateLimitCooldownMinutes} minutes");
+						sleepTime = TimeSpan.FromMinutes(RateLimitCooldownMinutes);
+					}
+
 					if(sleepTime.TotalMilliseconds > 0) {
 						this.Wait(Convert.ToInt32(sleepTime.TotalMilliseconds));
 					}
@@ -130,17 +134,17 @@
 
 			if(consecutiveErrors >= ConsecutiveErrorsThreshold) {
 				Log.Error($"Encountered {consecutiveErrors} errors in a row");
-				Log.Error($"Aborting...");
+				Log.Error("Aborting...");
 				this.telegramBot.NotifyCrash();
 			}
 		}
 
 		private static void LogStatus(StatusInfo statusInfo) {
 			var reqColor = LoggerColor.Reset;
-			var timeColor = statusInfo.LoopTime > 100 ? LoggerColor.Red : statusInfo.LoopTime > 50 ? LoggerColor.Yellow : LoggerColor.Green;
+			var timeColor = statusInfo.LoopTime > 500 ? LoggerColor.Red : statusInfo.LoopTime > 300 ? LoggerColor.Yellow : LoggerColor.Green;
 
-			var formattedStatus = $"[req: {reqColor}{statusInfo.Iterations}{LoggerColor.Reset}]"
-				+ $" [req_since_new: {reqColor}{statusInfo.IterationsSinceNew}{LoggerColor.Reset}]"
+			var formattedStatus = $"[req: {reqColor}{statusInfo.RequestsMade}{LoggerColor.Reset}]"
+				+ $" [req_since_new: {reqColor}{statusInfo.RequestsMadeSinceNew}{LoggerColor.Reset}]"
 				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]"
 				+ $" [rate_limit_remaining: {statusInfo.RateLimitRemaining}]";
 			Log.Info(formattedStatus);
@@ -161,7 +165,7 @@
 		}
 
 		private bool CheckTelegramBot() {
-			var isChatKeyOk = Task.Run(() => this.telegramBot.TestChatKey()).Result;
+			var isChatKeyOk = Task.Run(() => this.telegramBot.TestChatKey(), this.cancellationToken).Result;
 			return isChatKeyOk || Utilities.PromptForConfirmation("Continue anyway? (y/n): ");
 		}
 
@@ -225,5 +229,5 @@
 		}
 	}
 
-	public record StatusInfo(int Iterations, int IterationsSinceNew, long LoopTime, int RateLimitRemaining);
+	public record StatusInfo(int RequestsMade, int RequestsMadeSinceNew, long LoopTime, int RateLimitRemaining);
 }

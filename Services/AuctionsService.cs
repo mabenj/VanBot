@@ -10,8 +10,6 @@
 
 	using Newtonsoft.Json;
 
-	using RandomUserAgent;
-
 	using VanBot.Auctions;
 	using VanBot.Exceptions;
 
@@ -31,38 +29,28 @@
 		private readonly HttpClient httpClient;
 		private readonly string nonce;
 		private readonly string originalFullApiUrl;
-		private readonly Random random;
-		private int requestCounter;
 
 		internal AuctionsService(string urlWithQuery) {
 			this.httpClient = new HttpClient();
 			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(Referer);
-
 			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-			this.httpClient.DefaultRequestHeaders.AcceptEncoding.ParseAdd("compress");
-			this.httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-GB,en-US;q=0.9,en;q=0.8");
-			this.httpClient.DefaultRequestHeaders.Connection.ParseAdd("close");
 			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
 				NoCache = true
 			};
-			this.httpClient.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
-			this.httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
-			this.httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
-			this.httpClient.DefaultRequestHeaders.Add("Sec-Fetch-Site", "same-origin");
-			this.httpClient.DefaultRequestHeaders.Add("Sec-GPC", "1");
-
 			this.originalFullApiUrl = GetFullApiUrl(urlWithQuery);
-			this.requestCounter = 0;
 			this.nonce = Guid.NewGuid().ToString("n")[..4];
-			this.random = new Random();
+			this.RequestsMade = 0;
 		}
 
-		private string FullApiUrl => $"{this.originalFullApiUrl}&[{this.nonce}{++this.requestCounter}]";
+		public int RequestsMade {
+			get;
+			private set;
+		}
+
+		private string FullApiUrl => $"{this.originalFullApiUrl}&[{this.nonce}{this.RequestsMade}]";
 
 		internal AuctionCollection GetAuctions(out int rateLimitRemaining) {
-			this.httpClient.DefaultRequestHeaders.UserAgent.Clear();
-			while(!this.httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(RandomUa.RandomUserAgent)) { }
-
+			this.RequestsMade++;
 			var response = Task.Run(() => this.httpClient.GetAsync(this.FullApiUrl)).Result;
 
 			if(response.Headers.Contains("X-Robots-Tag")) {
