@@ -2,6 +2,7 @@
 	using System;
 	using System.Collections.Generic;
 	using System.Linq;
+	using System.Net;
 	using System.Net.Http;
 	using System.Net.Http.Headers;
 	using System.Text;
@@ -26,20 +27,16 @@
 		private const string SaleConditionKey = "sale_condition";
 		private const string TypeKey = "type";
 
-		private readonly HttpClient httpClient;
 		private readonly string nonce;
 		private readonly string originalFullApiUrl;
 
+		private HttpClient httpClient;
+
 		internal AuctionsService(string urlWithQuery) {
-			this.httpClient = new HttpClient();
-			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(Referer);
-			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
-				NoCache = true
-			};
 			this.originalFullApiUrl = GetFullApiUrl(urlWithQuery);
 			this.nonce = Guid.NewGuid().ToString("n")[..4];
 			this.RequestsMade = 0;
+			this.InitHttpClient();
 		}
 
 		public int RequestsMade {
@@ -50,6 +47,7 @@
 		private string FullApiUrl => $"{this.originalFullApiUrl}&[{this.nonce}{this.RequestsMade}]";
 
 		internal AuctionCollection GetAuctions(out int rateLimitRemaining) {
+			this.InitHttpClient();
 			this.RequestsMade++;
 			var response = Task.Run(() => this.httpClient.GetAsync(this.FullApiUrl)).Result;
 
@@ -100,6 +98,29 @@
 			AppendQueryParamIfNotNullOrEmpty(ref result, ConditionKey, condition);
 
 			return result.ToString().TrimEnd('&');
+		}
+
+		private void InitHttpClient() {
+			var proxy = new WebProxy {
+				//Address = new Uri("http://proxy.crawlera.com:8011"),
+				Address = new Uri(Proxies.GetOne()),
+				BypassProxyOnLocal = true,
+				UseDefaultCredentials = false,
+				Credentials = new NetworkCredential(
+					userName: "APIKEY",
+					password: "")
+			};
+			var httpClientHandler = new HttpClientHandler() {
+				Proxy = proxy,
+				ServerCertificateCustomValidationCallback =
+					(httpRequestMessage, cert, cetChain, policyErrors) => true
+			};
+			this.httpClient = new HttpClient(httpClientHandler);
+			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(Referer);
+			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
+				NoCache = true
+			};
 		}
 	}
 

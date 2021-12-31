@@ -12,6 +12,7 @@
 	using VanBot.Auctions;
 	using VanBot.Exceptions;
 	using VanBot.Helpers;
+	using VanBot.Logger;
 	using VanBot.Settings;
 
 	internal class ReserveService {
@@ -29,7 +30,8 @@
 			var handler = new HttpClientHandler() {
 				CookieContainer = this.cookies,
 				UseCookies = true,
-				UseDefaultCredentials = false
+				UseDefaultCredentials = false,
+				Proxy = new WebProxy(Proxies.GetOne(), true)
 			};
 			this.httpClient = new HttpClient(handler);
 		}
@@ -93,7 +95,8 @@
 				expirationTime = htmlParser.GetReservedAuctionExpiration();
 				// ReSharper disable once StringLiteralTypo
 				return htmlParser.GetReservedAuctionUri()?.Replace("/tuote/", string.Empty);
-			} catch {
+			} catch(Exception e) {
+				Log.Error("Error fetching reserved auction slug: " + e.Message);
 				expirationTime = -1;
 				return null;
 			}

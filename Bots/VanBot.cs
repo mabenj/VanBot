@@ -16,7 +16,7 @@
 		private const int ConsecutiveErrorsThreshold = 10;
 		private const int LowRateLimitThreshold = 5;
 		private const int NumberOfMockAuctions = 4;
-		private const int RateLimitCooldownMinutes = 4;
+		private const int RateLimitCooldownMinutes = 5;
 
 		private readonly AuctionsService auctionsService;
 		private readonly TimeSpan interval;
@@ -188,7 +188,9 @@
 				}
 			}
 
+			Log.Info("Before waiting");
 			this.Wait(4000); // wait for the reservation to go through
+			Log.Info("Before slug fetch");
 			var reservedAuctionSlug = this.reserveService.GetReservedAuctionSlug(out var expirationTime);
 
 			if(reservedAuctionSlug == null) {
