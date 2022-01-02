@@ -13,10 +13,10 @@
 	using global::VanBot.Settings;
 
 	public class VanBot {
+		internal const int LowRateLimitThreshold = 5;
 		private const int ConsecutiveErrorsThreshold = 10;
-		private const int LowRateLimitThreshold = 5;
 		private const int NumberOfMockAuctions = 4;
-		private const int RateLimitCooldownMinutes = 5;
+		private const int RateLimitCooldownMinutes = 1;
 
 		private readonly AuctionsService auctionsService;
 		private readonly TimeSpan interval;
@@ -78,7 +78,7 @@
 					currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining);
 
 					if(this.IsTestRun) {
-						currentAuctions.AddMockAuctions(NumberOfMockAuctions);
+						//currentAuctions.AddMockAuctions(NumberOfMockAuctions); // TODO
 					}
 
 					var (addedAuctions, removedAuctions) = AuctionCollection.GetAddedAndRemoved(this.allAuctions, currentAuctions);
@@ -121,9 +121,9 @@
 					var sleepTime = this.interval - this.timer.Elapsed;
 
 					if(rateLimitRemaining is > -1 and < LowRateLimitThreshold) {
-						Log.Warning($"Remaining rate limit is below {LowRateLimitThreshold}");
-						Log.Warning($"Cooling down for {RateLimitCooldownMinutes} minutes");
-						sleepTime = TimeSpan.FromMinutes(RateLimitCooldownMinutes);
+						//Log.Warning($"Remaining rate limit is below {LowRateLimitThreshold}");
+						//Log.Warning($"Cooling down for {RateLimitCooldownMinutes} minutes");
+						//sleepTime = TimeSpan.FromMinutes(RateLimitCooldownMinutes);
 					}
 
 					if(sleepTime.TotalMilliseconds > 0) {
@@ -143,8 +143,8 @@
 			var reqColor = LoggerColor.Reset;
 			var timeColor = statusInfo.LoopTime > 500 ? LoggerColor.Red : statusInfo.LoopTime > 300 ? LoggerColor.Yellow : LoggerColor.Green;
 
-			var formattedStatus = $"[req: {reqColor}{statusInfo.RequestsMade}{LoggerColor.Reset}]"
-				+ $" [req_since_new: {reqColor}{statusInfo.RequestsMadeSinceNew}{LoggerColor.Reset}]"
+			var formattedStatus = $"[requests: {reqColor}{statusInfo.RequestsMade}{LoggerColor.Reset}]"
+				+ $" [requests_since_new: {reqColor}{statusInfo.RequestsMadeSinceNew}{LoggerColor.Reset}]"
 				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]"
 				+ $" [rate_limit_remaining: {statusInfo.RateLimitRemaining}]";
 			Log.Info(formattedStatus);

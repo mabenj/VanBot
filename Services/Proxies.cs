@@ -5,12 +5,13 @@
 		private static readonly IEnumerator<string> Generator = GetProxies().GetEnumerator();
 
 		private static readonly string[] AllProxies = {
-			"foo:bar"
+			"https://sv1hbol4bk.execute-api.eu-central-1.amazonaws.com/products",
+			"https://hffg4pca16.execute-api.eu-north-1.amazonaws.com/products"
 		};
 
 		public static string GetOne() {
 			Generator.MoveNext();
-			return $"http://{Generator.Current}";
+			return Generator.Current;
 		}
 
 		private static IEnumerable<string> GetProxies() {

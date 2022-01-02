@@ -30,8 +30,7 @@
 			var handler = new HttpClientHandler() {
 				CookieContainer = this.cookies,
 				UseCookies = true,
-				UseDefaultCredentials = false,
-				Proxy = new WebProxy(Proxies.GetOne(), true)
+				UseDefaultCredentials = false
 			};
 			this.httpClient = new HttpClient(handler);
 		}
@@ -64,17 +63,17 @@
 
 			using var request = new HttpRequestMessage(HttpMethod.Post, orderUrl);
 			var postData = new Dictionary<string, string>() {
-				{ "stage_token", stageToken },
-				{ "first_name", contactDetails.FirstName },
-				{ "last_name", contactDetails.LastName },
-				{ "phone", contactDetails.PhoneNumber },
-				{ "address_street", contactDetails.Street },
-				{ "address_zip", contactDetails.Zip },
-				{ "address_city", contactDetails.City },
-				{ "address_country", contactDetails.Country },
-				{ "details_ok[]", "1" },
-				{ "payment_method", "9" },
-				{ "stage-payment-provider", this.paymentMethod.Name }
+				{"stage_token", stageToken},
+				{"first_name", contactDetails.FirstName},
+				{"last_name", contactDetails.LastName},
+				{"phone", contactDetails.PhoneNumber},
+				{"address_street", contactDetails.Street},
+				{"address_zip", contactDetails.Zip},
+				{"address_city", contactDetails.City},
+				{"address_country", contactDetails.Country},
+				{"details_ok[]", "1"},
+				{"payment_method", "9"},
+				{"stage-payment-provider", this.paymentMethod.Name}
 			};
 			request.Content = new FormUrlEncodedContent(postData);
 			request.Headers.Referrer = new Uri(orderUrl);
@@ -174,11 +173,11 @@
 
 			using var request = new HttpRequestMessage(HttpMethod.Post, LoginUrl);
 			var postData = new Dictionary<string, string>() {
-				{ "cm_token", cmToken },
+				{"cm_token", cmToken},
 				// ReSharper disable once StringLiteralTypo
-				{ "stage-extranet-from", string.Empty },
-				{ "username", this.username },
-				{ "password", this.password }
+				{"stage-extranet-from", string.Empty},
+				{"username", this.username},
+				{"password", this.password}
 			};
 			request.Content = new FormUrlEncodedContent(postData);
 			request.Headers.Referrer = new Uri(Referer);
