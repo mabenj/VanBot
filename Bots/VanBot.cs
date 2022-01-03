@@ -13,10 +13,11 @@
 	using global::VanBot.Settings;
 
 	public class VanBot {
+		internal const int CriticalRateLimitThreshold = 3;
 		internal const int LowRateLimitThreshold = 5;
 		private const int ConsecutiveErrorsThreshold = 10;
 		private const int NumberOfMockAuctions = 4;
-		private const int RateLimitCooldownMinutes = 1;
+		private const int RateLimitCooldownMinutes = 4;
 
 		private readonly AuctionsService auctionsService;
 		private readonly TimeSpan interval;
@@ -78,7 +79,8 @@
 					currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining);
 
 					if(this.IsTestRun) {
-						//currentAuctions.AddMockAuctions(NumberOfMockAuctions); // TODO
+						currentAuctions = currentAuctions.Copy();
+						currentAuctions.AddMockAuctions(NumberOfMockAuctions);
 					}
 
 					var (addedAuctions, removedAuctions) = AuctionCollection.GetAddedAndRemoved(this.allAuctions, currentAuctions);
@@ -112,18 +114,18 @@
 					this.allAuctions = currentAuctions;
 					this.timer.Stop();
 					LogStatus(
-						new StatusInfo(
-							this.auctionsService.RequestsMade,
-							this.requestsSinceNew,
-							this.timer.ElapsedMilliseconds,
-							rateLimitRemaining
-						));
+						this.auctionsService.RequestsMade,
+						this.requestsSinceNew,
+						this.timer.ElapsedMilliseconds,
+						rateLimitRemaining,
+						Proxies.GetNameOfCurrent()
+					);
 					var sleepTime = this.interval - this.timer.Elapsed;
 
-					if(rateLimitRemaining is > -1 and < LowRateLimitThreshold) {
-						//Log.Warning($"Remaining rate limit is below {LowRateLimitThreshold}");
-						//Log.Warning($"Cooling down for {RateLimitCooldownMinutes} minutes");
-						//sleepTime = TimeSpan.FromMinutes(RateLimitCooldownMinutes);
+					if(rateLimitRemaining is > -1 and < CriticalRateLimitThreshold) {
+						Log.Warning($"Remaining rate limit is below {LowRateLimitThreshold}");
+						Log.Warning($"Cooling down for {RateLimitCooldownMinutes} minutes");
+						sleepTime = TimeSpan.FromMinutes(RateLimitCooldownMinutes);
 					}
 
 					if(sleepTime.TotalMilliseconds > 0) {
@@ -139,14 +141,16 @@
 			}
 		}
 
-		private static void LogStatus(StatusInfo statusInfo) {
+		private static void LogStatus(int requests, int requestsSinceNew, long latencyMillis, int rateLimitRemaining, string currentProxyName) {
 			var reqColor = LoggerColor.Reset;
-			var timeColor = statusInfo.LoopTime > 500 ? LoggerColor.Red : statusInfo.LoopTime > 300 ? LoggerColor.Yellow : LoggerColor.Green;
+			var latencyColor = latencyMillis > 500 ? LoggerColor.Red : latencyMillis > 300 ? LoggerColor.Yellow : LoggerColor.Green;
+			var rateLimitColor = rateLimitRemaining < 10 ? LoggerColor.Red : rateLimitRemaining < 20 ? LoggerColor.Yellow : LoggerColor.Green;
 
-			var formattedStatus = $"[requests: {reqColor}{statusInfo.RequestsMade}{LoggerColor.Reset}]"
-				+ $" [requests_since_new: {reqColor}{statusInfo.RequestsMadeSinceNew}{LoggerColor.Reset}]"
-				+ $" [time: {timeColor}{$"{statusInfo.LoopTime}",-4}{LoggerColor.Reset} ms]"
-				+ $" [rate_limit_remaining: {statusInfo.RateLimitRemaining}]";
+			var formattedStatus = $"[req: {reqColor}{requests}{LoggerColor.Reset}]"
+				+ $" [req_new: {reqColor}{requestsSinceNew}{LoggerColor.Reset}]"
+				+ $" [lat: {latencyColor}{$"{latencyMillis}",-4}{LoggerColor.Reset} ms]"
+				+ $" [rate_limit: {rateLimitColor}{$"{rateLimitRemaining}",-2}{LoggerColor.Reset}]"
+				+ $" [proxy: {currentProxyName}]";
 			Log.Info(formattedStatus);
 		}
 
@@ -188,14 +192,13 @@
 				}
 			}
 
-			Log.Info("Before waiting");
 			this.Wait(4000); // wait for the reservation to go through
-			Log.Info("Before slug fetch");
 			var reservedAuctionSlug = this.reserveService.GetReservedAuctionSlug(out var expirationTime);
 
 			if(reservedAuctionSlug == null) {
 				Log.Error("Could not reserve any auctions");
 			} else if(this.shouldTryToExtend) {
+				Log.Info("Slug = " + reservedAuctionSlug);
 				var reservedAuction = auctions.First(a => a.Slug == reservedAuctionSlug);
 				Log.Info($"Extending reservation of '{reservedAuction.Id}'");
 				try {
@@ -230,6 +233,4 @@
 			this.cancellationToken.WaitHandle.WaitOne(millis);
 		}
 	}
-
-	public record StatusInfo(int RequestsMade, int RequestsMadeSinceNew, long LoopTime, int RateLimitRemaining);
 }

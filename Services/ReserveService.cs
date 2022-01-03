@@ -63,17 +63,17 @@
 
 			using var request = new HttpRequestMessage(HttpMethod.Post, orderUrl);
 			var postData = new Dictionary<string, string>() {
-				{"stage_token", stageToken},
-				{"first_name", contactDetails.FirstName},
-				{"last_name", contactDetails.LastName},
-				{"phone", contactDetails.PhoneNumber},
-				{"address_street", contactDetails.Street},
-				{"address_zip", contactDetails.Zip},
-				{"address_city", contactDetails.City},
-				{"address_country", contactDetails.Country},
-				{"details_ok[]", "1"},
-				{"payment_method", "9"},
-				{"stage-payment-provider", this.paymentMethod.Name}
+				{ "stage_token", stageToken },
+				{ "first_name", contactDetails.FirstName },
+				{ "last_name", contactDetails.LastName },
+				{ "phone", contactDetails.PhoneNumber },
+				{ "address_street", contactDetails.Street },
+				{ "address_zip", contactDetails.Zip },
+				{ "address_city", contactDetails.City },
+				{ "address_country", contactDetails.Country },
+				{ "details_ok[]", "1" },
+				{ "payment_method", "9" },
+				{ "stage-payment-provider", this.paymentMethod.Name }
 			};
 			request.Content = new FormUrlEncodedContent(postData);
 			request.Headers.Referrer = new Uri(orderUrl);
@@ -88,8 +88,7 @@
 		public string GetReservedAuctionSlug(out long expirationTime) {
 			try {
 				// ReSharper disable once StringLiteralTypo
-				const string Url = "https://www.vaurioajoneuvo.fi/kayttajalle/omat-tiedot/#tilaukset";
-				var html = this.GetHtml(Url, out _);
+				var html = this.GetHtml(UrlConstants.OrdersUrl, out _);
 				var htmlParser = new HtmlParser(html);
 				expirationTime = htmlParser.GetReservedAuctionExpiration();
 				// ReSharper disable once StringLiteralTypo
@@ -158,8 +157,8 @@
 		}
 
 		private async Task<string> SendLoginRequest() {
-			const string LoginUrl = "https://www.vaurioajoneuvo.fi/kayttajalle/kirjaudu-sisaan/";
-			const string Referer = "https://www.vaurioajoneuvo.fi/kayttajalle/kirjaudu-sisaan/";
+			const string LoginUrl = UrlConstants.LoginUrl;
+			const string Referer = UrlConstants.LoginRefererUrl;
 
 			var loginPageHtml = this.GetHtml(LoginUrl, out var status);
 			if(status != HttpStatusCode.OK) {
@@ -173,11 +172,11 @@
 
 			using var request = new HttpRequestMessage(HttpMethod.Post, LoginUrl);
 			var postData = new Dictionary<string, string>() {
-				{"cm_token", cmToken},
+				{ "cm_token", cmToken },
 				// ReSharper disable once StringLiteralTypo
-				{"stage-extranet-from", string.Empty},
-				{"username", this.username},
-				{"password", this.password}
+				{ "stage-extranet-from", string.Empty },
+				{ "username", this.username },
+				{ "password", this.password }
 			};
 			request.Content = new FormUrlEncodedContent(postData);
 			request.Headers.Referrer = new Uri(Referer);
@@ -187,8 +186,8 @@
 		}
 
 		private void SendReservationRequest(string productPageUrl, string productUuid, string cmToken) {
-			var reservationUrl = $"https://www.vaurioajoneuvo.fi/api/1.0.0/product/{productUuid}/reserve/";
-			using var request = new HttpRequestMessage(HttpMethod.Post, reservationUrl);
+			var apiUrl = UrlConstants.GetReservationApiUrl(productUuid);
+			using var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
 			var payload = JsonConvert.SerializeObject(new CmTokenDto(cmToken));
 			request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 			if(request.Content.Headers.ContentType != null) {
@@ -200,11 +199,8 @@
 		}
 
 		private async Task<string> SetSvtBuyersCookie() {
-			const string Url = "https://www.vaurioajoneuvo.fi/api/1.0.0/token/";
-			const string Referer = "https://www.vaurioajoneuvo.fi/";
-
-			using var request = new HttpRequestMessage(HttpMethod.Get, Url);
-			request.Headers.Referrer = new Uri(Referer);
+			using var request = new HttpRequestMessage(HttpMethod.Get, UrlConstants.TokenApiUrl);
+			request.Headers.Referrer = new Uri(UrlConstants.FrontPage);
 			var response = await this.httpClient.SendAsync(request);
 			return response.StatusCode != HttpStatusCode.OK ? $"Failed to fetch svt-buyers cookie: status {(int) response.StatusCode}" : null;
 		}

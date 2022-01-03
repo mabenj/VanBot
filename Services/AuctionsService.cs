@@ -15,7 +15,6 @@ namespace VanBot.Services {
 
 	using VanBot.Auctions;
 	using VanBot.Exceptions;
-	using VanBot.Logger;
 
 	public class AuctionsService {
 		private readonly Dictionary<string, AuctionCollection> auctionsByETag;
@@ -60,7 +59,6 @@ namespace VanBot.Services {
 
 			rateLimitRemaining = Convert.ToInt32(response.Headers.TryGetValues("X-RateLimit-Remaining", out var values) ? values.First() : "-1");
 			if(rateLimitRemaining is < VanBotClass.LowRateLimitThreshold and > -1) {
-				Log.Warning("Changing proxy");
 				this.currentBaseApiUrl = Proxies.GetOne();
 			}
 
@@ -121,9 +119,8 @@ namespace VanBot.Services {
 		}
 
 		private void InitHttpClient() {
-			const string Referer = "https://www.vaurioajoneuvo.fi/";
 			this.httpClient = new HttpClient();
-			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(Referer);
+			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(UrlConstants.FrontPage);
 			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
 			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
 				NoCache = true

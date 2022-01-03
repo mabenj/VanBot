@@ -4,9 +4,10 @@
 	using Newtonsoft.Json;
 
 	using VanBot.Helpers;
+	using VanBot.Services;
 
 	public class Auction {
-		private const string MainUrl = "https://www.vaurioajoneuvo.fi";
+		private const string MainUrl = UrlConstants.FrontPage;
 		private static int mockId = 1337;
 
 		private Auction() { }

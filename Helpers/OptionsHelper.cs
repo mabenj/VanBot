@@ -28,7 +28,7 @@
 				var configFile = new ConfigParser(
 					ConfigFileName,
 					new ConfigParserSettings() {
-						CommentCharacters = new[] {"#"}
+						CommentCharacters = new[] { "#" }
 					});
 				Log.Info($"Config '{ConfigFileName}' loaded", LoggerColor.Blue);
 				if(string.IsNullOrWhiteSpace(options.Url)) {
