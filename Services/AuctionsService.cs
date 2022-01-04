@@ -8,7 +8,6 @@ namespace VanBot.Services {
 	using System.Net.Http;
 	using System.Net.Http.Headers;
 	using System.Text;
-	using System.Threading;
 	using System.Threading.Tasks;
 	using System.Web;
 
@@ -16,16 +15,14 @@ namespace VanBot.Services {
 
 	using VanBot.Auctions;
 	using VanBot.Exceptions;
-	using VanBot.Logger;
 
 	public class AuctionsService {
 		private readonly Dictionary<string, AuctionCollection> auctionsByETag;
-		private readonly object lockObject = new();
+		private readonly HttpClient httpClient;
 		private readonly string nonce;
 		private readonly string queryString;
 
 		private string currentBaseApiUrl;
-		private HttpClient httpClient;
 		private string newestETag;
 
 		internal AuctionsService(string urlWithQuery) {
@@ -35,7 +32,13 @@ namespace VanBot.Services {
 			this.RequestsMade = 0;
 			this.auctionsByETag = new Dictionary<string, AuctionCollection>();
 			this.newestETag = null;
-			this.InitHttpClient();
+
+			this.httpClient = new HttpClient();
+			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(UrlConstants.FrontPage);
+			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
+				NoCache = true
+			};
 		}
 
 		public int RequestsMade {
@@ -45,35 +48,7 @@ namespace VanBot.Services {
 
 		private string FullApiUrl => $"{this.currentBaseApiUrl}?{this.queryString}&[{this.nonce}{this.RequestsMade}]";
 
-		public AuctionCollection WaitForNewAuctions(out int rateLimitRemaining) {
-			_ = this.GetAuctions(out _, out var etag);
-			AuctionCollection newAuctions = null;
-			var newAuctionsFound = false;
-
-			while(!newAuctionsFound) {
-				Task.Run(
-					() => {
-						if(!this.TryGetAuctions(etag, out var auctions, out var rateLimitRemaining)) {
-							Log.Info($"Nothing found... ({rateLimitRemaining}, {Proxies.GetNameOfCurrent()})", LoggerColor.White);
-							return;
-						}
-						lock(this.lockObject) {
-							newAuctions = auctions;
-							newAuctionsFound = true;
-						}
-						Log.Info($"New auctions found! ({rateLimitRemaining}, {Proxies.GetNameOfCurrent()})", LoggerColor.Green);
-					});
-
-				if(newAuctionsFound) {
-					break;
-				}
-				Thread.Sleep(100);
-			}
-			rateLimitRemaining = -1;
-			return newAuctions;
-		}
-
-		internal AuctionCollection GetAuctions(out int rateLimitRemaining, out string eTag) {
+		internal AuctionCollection GetAuctions(out int rateLimitRemaining) {
 			var request = new HttpRequestMessage(HttpMethod.Get, this.FullApiUrl);
 			if(this.newestETag != null) {
 				request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue(this.newestETag));
@@ -94,7 +69,7 @@ namespace VanBot.Services {
 				this.currentBaseApiUrl = Proxies.GetOne();
 			}
 
-			eTag = response.Headers.ETag?.Tag;
+			var eTag = response.Headers.ETag?.Tag;
 			if(response.StatusCode == HttpStatusCode.NotModified) {
 				return this.auctionsByETag.TryGetValue(eTag ?? "-1", out var result) ? result : null;
 			}
@@ -144,55 +119,9 @@ namespace VanBot.Services {
 			var json = Task.Run(httpContent.ReadAsStringAsync).Result;
 			var result = JsonConvert.DeserializeObject<AuctionsApiResult>(json);
 			if(result?.Status != "OK") {
-				throw new Exception($"Could not fetch auctions: {result?.Status}");
+				throw new Exception($"Could not parse auctions: status is '{result?.Status}'");
 			}
-			var auctions = AuctionCollection.FromEnumerable(result.Auctions);
-			return auctions;
-		}
-
-		private void InitHttpClient() {
-			this.httpClient = new HttpClient();
-			this.httpClient.DefaultRequestHeaders.Referrer = new Uri(UrlConstants.FrontPage);
-			this.httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-			this.httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue() {
-				NoCache = true
-			};
-		}
-
-		private bool TryGetAuctions(string etag, out AuctionCollection auctions, out int rateLimitRemaining) {
-			HttpRequestMessage request;
-			lock(this.lockObject) {
-				request = new HttpRequestMessage(HttpMethod.Get, this.FullApiUrl);
-				request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue(etag));
-				this.RequestsMade++;
-			}
-			var response = this.httpClient.Send(request);
-
-			if(response.Headers.Contains("X-Robots-Tag")) {
-				throw new CaptchaException("Encountered captcha while fetching auctions");
-			}
-
-			if(response.StatusCode == HttpStatusCode.TooManyRequests) {
-				throw new Exception("Too many requests");
-			}
-
-			rateLimitRemaining = Convert.ToInt32(response.Headers.TryGetValues("X-RateLimit-Remaining", out var values) ? values.First() : "-1");
-			if(rateLimitRemaining is < VanBotClass.LowRateLimitThreshold and > -1) {
-				lock(this.lockObject) {
-					this.currentBaseApiUrl = Proxies.GetOne();
-				}
-			}
-
-			if(rateLimitRemaining < 3) {
-				Environment.Exit(1);
-			}
-
-			if(response.StatusCode == HttpStatusCode.NotModified) {
-				auctions = null;
-				return false;
-			}
-			auctions = ParseAuctions(response.Content);
-			return true;
+			return AuctionCollection.FromEnumerable(result.Auctions);
 		}
 	}
 
