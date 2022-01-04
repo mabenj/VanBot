@@ -7,7 +7,9 @@
 		private static readonly Dictionary<string, string> AllProxies = new() {
 			{ "eu-north-1 (Stockholm)", "https://hffg4pca16.execute-api.eu-north-1.amazonaws.com/products" },
 			{ "eu-central-1 (Frankfurt)", "https://sv1hbol4bk.execute-api.eu-central-1.amazonaws.com/products" },
-			{ "eu-west-2 (London)", "https://iikj56ddmh.execute-api.eu-west-2.amazonaws.com/products" }
+			{ "eu-west-2 (London)", "https://iikj56ddmh.execute-api.eu-west-2.amazonaws.com/products" },
+			{ "eu-west-3 (Paris)", "https://i421zynll1.execute-api.eu-west-3.amazonaws.com/products" },
+			{ "eu-west-1 (Ireland)", "https://rtedaw6qql.execute-api.eu-west-1.amazonaws.com/products" },
 		};
 
 		public static string GetNameOfCurrent() {

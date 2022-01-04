@@ -63,7 +63,7 @@
 			}
 
 			Log.Info("Fetching initial auctions");
-			this.allAuctions = this.auctionsService.GetAuctions(out var rateLimitRemaining);
+			this.allAuctions = this.auctionsService.GetAuctions(out var rateLimitRemaining, out _);
 			foreach(var auction in this.allAuctions) {
 				Log.Info(auction.ToString(), LoggerColor.Cyan);
 			}
@@ -76,7 +76,9 @@
 				AuctionCollection currentAuctions = null;
 
 				try {
-					currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining);
+					//currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining, out _);
+
+					currentAuctions = this.auctionsService.WaitForNewAuctions(out rateLimitRemaining);
 
 					if(this.IsTestRun) {
 						currentAuctions = currentAuctions.Copy();
