@@ -63,7 +63,7 @@
 			}
 
 			Log.Info("Fetching initial auctions");
-			this.allAuctions = this.auctionsService.GetAuctions(out var rateLimitRemaining);
+			this.allAuctions = this.auctionsService.GetAuctions(out var rateLimitRemaining, out _);
 			foreach(var auction in this.allAuctions) {
 				Log.Info(auction.ToString(), LoggerColor.Cyan);
 			}
@@ -76,7 +76,8 @@
 				AuctionCollection currentAuctions = null;
 
 				try {
-					currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining);
+					//currentAuctions = this.auctionsService.GetAuctions(out rateLimitRemaining, out _);
+					currentAuctions = this.auctionsService.WaitForNewAuctions((int) this.interval.TotalMilliseconds, token, out rateLimitRemaining);
 
 					if(this.IsTestRun) {
 						currentAuctions = currentAuctions.Copy();
@@ -203,7 +204,7 @@
 				Log.Info($"Extending reservation of '{reservedAuction.Id}'");
 				try {
 					this.reserveService.ExtendReservation(reservedAuction, ref expirationTime);
-				} catch(ReservationException e) {
+				} catch(Exception e) {
 					Log.Error($"Error while extending reservation '{reservedAuction.Id}': {e.Message}");
 				}
 			}
